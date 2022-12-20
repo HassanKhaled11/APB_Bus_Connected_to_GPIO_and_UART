@@ -1,12 +1,6 @@
 `timescale 1us/1us
 
-module transmitter(input wire clk,input wire rst_n,input wire tx_start,input wire[7:0]tx_data_in,output wire tx_data_out);
-
-endmodule
-
-module fsm_transmitter();
-endmodule
-
+//Module Piso implementation 
 module piso(input wire clk,input wire rst_n,input wire load,input wire[7:0]data_in,output reg data_out);
   reg[7:0] data_reg;
   
@@ -25,6 +19,7 @@ module piso(input wire clk,input wire rst_n,input wire load,input wire[7:0]data_
 
 endmodule
 
+//Test Bensch For piso (Parallel In Serial Out Shift Register)
 module tb_piso();
   reg clk,rst_n,load;
   reg[7:0] data_in;
@@ -43,5 +38,31 @@ module tb_piso();
     #2  load = 0;
   end
   
+endmodule
+
+//Parity Generator Module
+module parity_generator #(parameter data_width = 8)(input wire parity_enable,input wire[data_width-1:0] data,output reg parity);
+  always@(parity_enable or data) begin
+    if(parity_enable)
+      parity = ^data;
+    else
+      parity = 0;
+  end
+endmodule
+
+//Test Bench for Parity Generator
+module tb_parity_generator();
+  reg parity_enable;
+  reg[7:0] data_in;
+  wire parity;
+  
+  parity_generator p1(.parity_enable(parity_enable),.data(data_in),.parity(parity));
+  
+  initial begin
+    parity_enable = 0;data_in = 8'h00;
+    #2  parity_enable = 1; data_in = 8'b11101010;
+    #2  parity_enable = 0;
+    #2  parity_enable = 1; data_in = 8'b10101010;
+  end
 endmodule
 
