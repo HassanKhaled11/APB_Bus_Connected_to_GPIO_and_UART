@@ -3,4 +3,6 @@ Transmitter.v.bak
 vsim.wlf
 Transmitter.cr.mti
 Baud Clock Generator.v.bak
+BaudClockGenerator_tb.v.bak
+Transmitter_tb.v.bak
 work/
