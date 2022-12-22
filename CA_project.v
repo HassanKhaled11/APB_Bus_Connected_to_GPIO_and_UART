@@ -26,7 +26,7 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
   output reg                    PENABLE    ,
   output reg                    PWRITE     ,
   output reg [DATA_WIDTH-1:0]   PWDATA     ,
-  output reg [STROPE_WIDTH-1:0] PSTRB      ,
+  output reg [STROBE_WIDTH-1:0] PSTRB      ,
   output reg [2:0]              PPROT      
   );
   
@@ -49,19 +49,20 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
     
     else   
       state <= nextstate;
-      
   end
+  
   
   always @(*)
   begin
     
-    case(state): begin
-    
+    case(state)
                IDLE: begin
-                   if(Transfer)
+                   if(Transfer)begin
                    nextstate <= SETUP;
-                   else     
+                   end
+                   else begin   
                    nextstate <= IDLE;
+                   end
                end
                    
                    
@@ -71,11 +72,13 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
                 
                 
                ACCESS: begin
-                  if(!PSLVERR && Transfer)begin
-                    if(PREADY)
+                  if(!PSLVERR && Transfer) begin
+                    if(PREADY)begin
                     nextstate <= SETUP;
-                    else
+                    end
+                    else begin
                     nextstate <= ACCESS;
+                    end
                   end
                                  
                   else 
@@ -84,9 +87,8 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
                 
                 
                default: nextstate <= IDLE;
-                        
-    end  
-end               
+  endcase                      
+  end               
     
     
     
@@ -95,7 +97,7 @@ end
     if(!PRESETn)begin
       
       PENABLE     <= 1'b0;
-      PPADDR      <=  'b0;
+      PADDR      <=  'b0;
       PWDATA      <=  'b0;
       PWRITE      <= 1'b0;
       PSTRB       <=  'b0;
@@ -107,14 +109,14 @@ end
     
     else if(nextstate == SETUP)begin
      
-      PENABLE <= 1'b0;
-      PADDR <= ADDR_in;
-      PWRITE <= WRITE_in;
-      PPROT <= PROT_in;
+      PENABLE  <= 1'b0;
+      PADDR    <= ADDR_in;
+      PWRITE   <= WRITE_in;
+      PPROT    <= PROT_in;
       
       if(PWRITE)begin
-        PWDATA <= DATA_in;
-        PSTRB <= STROB_in;
+        PWDATA  <= DATA_in;
+        PSTRB   <= STROB_in;
       end
       
       else
@@ -124,26 +126,25 @@ end
     
   else if(nextstate == ACCESS)begin
      
-      PENABLE <= 1'b1;
-      PADDR <= ADDR_in;
-      PWRDATA <= DATA_in;
-      PWRITE <= WRITE_in;
+      PENABLE   <= 1'b1;
+      PADDR     <= ADDR_in;
+      PWDATA   <= DATA_in;
+      PWRITE    <= WRITE_in;
       
       if(PREADY)begin
         SLVERR_out <= PSLVERR;
-        
+       
         if(!WRITE_in)begin
           DATA_out <= PRDATA;
         end
-        
-      end
-      
+       end
   end
-  
+      
   
   else PENABLE <= 1'b0;
      
-     
+ end
+endmodule
       
       
       
