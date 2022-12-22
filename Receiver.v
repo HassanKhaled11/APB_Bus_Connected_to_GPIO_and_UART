@@ -16,11 +16,6 @@ module Uart8Receiver (
     output reg        err   // error while receiving data
 );
 
-    localparam [2:0] RESET = 3'b000,
-                     IDLE  = 3'b001,
-                     DATA_BITS = 3'b010,
-                     PARITY_BIT = 3'b011,
-                     STOP_BIT = 3'b100;
     
     // states of state machine
     reg [1:0] RESET = 2'b00;
@@ -126,3 +121,4 @@ module Uart8Receiver (
     end
 
 endmodule
+
