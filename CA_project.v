@@ -1,5 +1,5 @@
 
-module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, parameter STROBE_WIDTH = 'd4, parameter SLAVES_NUM = 'd2)
+module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, parameter STROBE_WIDTH = 'd4, parameter SLAVES_NUM = 2)
   (
   
   //--------------- INPUTS -----------------------
@@ -8,7 +8,7 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
   input wire [DATA_WIDTH-1:0]   DATA_in    ,
   input wire [2:0]              PROT_in    ,
   input wire [SLAVES_NUM-1:0]   SEL_in     ,
-  input wire [STROBE_WIDTH-1:0] STROB_in  ,
+  input wire [STROBE_WIDTH-1:0] STROB_in   ,
   input wire                    Transfer   ,     
   input wire                    WRITE_in   ,
   input                         PCLK       ,
@@ -52,6 +52,8 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
   end
   
   
+  
+  
   always @(*)
   begin
     
@@ -92,12 +94,32 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
     
     
     
+    
+  always @(posedge PCLK , negedge PRESETn)
+  begin
+    if(!PRESETn) begin
+      PSEL <= 0;
+    end
+    
+    else if(nextstate == IDLE) begin
+      PSEL <= 0;
+    end
+    
+    
+    else begin
+    PSEL <= SEL_in;
+    end
+     
+  end
+  
+
+    
   always @(posedge PCLK or negedge PRESETn) 
   begin
     if(!PRESETn)begin
       
       PENABLE     <= 1'b0;
-      PADDR      <=  'b0;
+      PADDR       <=  'b0;
       PWDATA      <=  'b0;
       PWRITE      <= 1'b0;
       PSTRB       <=  'b0;
@@ -121,31 +143,24 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
       
       else
         PSTRB <= 'b0;
-        
-    end
+  end
     
   else if(nextstate == ACCESS)begin
-     
-      PENABLE   <= 1'b1;
-      PADDR     <= ADDR_in;
-      PWDATA   <= DATA_in;
-      PWRITE    <= WRITE_in;
       
+      PENABLE   <= 1'b1     ;
+
       if(PREADY)begin
-        SLVERR_out <= PSLVERR;
+          SLVERR_out <= PSLVERR;
        
-        if(!WRITE_in)begin
-          DATA_out <= PRDATA;
+        if(!PWRITE)begin
+          DATA_out <= PRDATA ;
         end
        end
   end
       
   
-  else PENABLE <= 1'b0;
+  else PENABLE <= 1'b0 ;
      
  end
-endmodule
-      
-      
-      
-                        
+endmodule                
+
