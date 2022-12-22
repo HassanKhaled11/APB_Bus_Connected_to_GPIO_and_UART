@@ -1,3 +1,4 @@
+`timescale 1ns/1ns
 /*
  * 8-bit UART Receiver.
  * Able to receive 8 bits of serial data, one start bit, one stop bit.
@@ -10,6 +11,8 @@ module Uart8Receiver (
     input  wire       clk,  // baud rate
     input  wire       en,
     input  wire       in,   // rx
+    input  wire       parity_err,
+    output reg        parity_en,
     output reg  [7:0] out,  // received data
     output reg        done, // end on transaction
     output reg        busy, // transaction is in process
@@ -18,10 +21,11 @@ module Uart8Receiver (
 
     
     // states of state machine
-    reg [1:0] RESET = 2'b00;
-    reg [1:0] IDLE = 2'b01;
-    reg [1:0] DATA_BITS = 2'b10;
-    reg [1:0] STOP_BIT = 2'b11;
+    reg [2:0] RESET = 3'b000;
+    reg [2:0] IDLE = 3'b001;
+    reg [2:0] DATA_BITS = 3'b010;
+    reg [2:0] PARITY = 3'b011;
+    reg [2:0] STOP_BIT = 3'b100;
 
     reg [2:0] state;
     reg [2:0] bitIdx = 3'b0; // for 8-bit data
@@ -29,11 +33,13 @@ module Uart8Receiver (
     reg [3:0] clockCount = 4'b0; // count clocks for 16x oversample
     reg [7:0] receivedData = 8'b0; // temporary storage for input data
 
+    assign parity_err = 0;
     initial begin
         out <= 8'b0;
         err <= 1'b0;
         done <= 1'b0;
         busy <= 1'b0;
+        parity_en <= 0;
     end
 
     always @(posedge clk) begin
@@ -59,7 +65,7 @@ module Uart8Receiver (
 
             IDLE: begin
                 done <= 1'b0;
-                if (&clockCount) begin
+                if (clockCount >= 4'b0111) begin
                     state <= DATA_BITS;
                     out <= 8'b0;
                     bitIdx <= 3'b0;
@@ -85,7 +91,7 @@ module Uart8Receiver (
                     receivedData[bitIdx] <= inputSw[0];
                     if (&bitIdx) begin
                         bitIdx <= 3'b0;
-                        state <= STOP_BIT;
+                        state <= PARITY;
                     end else begin
                         bitIdx <= bitIdx + 3'b1;
                     end
@@ -94,6 +100,20 @@ module Uart8Receiver (
                 end
             end
   
+            PARITY: begin
+              if(&clockCount) begin
+                clockCount <= 0;
+                parity_en <= 1;
+                out <= receivedData;  //To send the data to parity checker module
+                if(~parity_err)
+                  state <= STOP_BIT;
+                else
+                  state <= RESET;
+              end
+            else
+              clockCount <= clockCount + 4'b1;
+            end
+            
 
             /*
             * Baud clock may not be running at exactly the same rate as the
@@ -122,3 +142,86 @@ module Uart8Receiver (
 
 endmodule
 
+
+
+
+
+
+
+
+
+
+module tb_receiver();
+  reg clk, en, in;
+  wire parity_en;
+  wire parity_err;
+  wire done, busy, err;
+  wire [7:0]out;
+  Uart8Receiver uart8receiver(.parity_en(parity_en), .clk(clk), .en(en), .in(in), .parity_err(parity_err), .out(out), .busy(busy), .err(err), .done(done));
+  PARITY_CHECK parity_check(.parity_en(parity_en), .rx(in), .rx_data_in(out), .parity_err(parity_err));
+  always #1 clk = ~clk;
+  
+  initial begin
+    clk <= 0; en <= 1; in <= 0;
+    #3 in = 0; 
+    #2 en = 1;
+    #32 in = 1;
+    #32 in = 0;
+    #32 in = 1;
+    #32 in = 0; 
+    #32 in = 1;
+    #32 in = 0;
+    #32 in = 1;
+    #32 in = 1;
+    #32 in = 0;   // Parity bit (Parity error)
+    #32 in = 1;   //stop bit                   
+  end
+  
+  
+endmodule
+
+
+
+
+
+
+
+
+
+module PARITY_CHECK(parity_err, parity_en, rx, rx_data_in, /*parity_data_out*/);
+  output reg parity_err;
+  //output reg[7:0] parity_data_out;
+  input[7:0] rx_data_in;
+  reg[7:0] rx_data;
+  input wire rx, parity_en;
+  
+  always@(*) begin
+    if(parity_en) begin
+      rx_data = rx_data_in;
+      if(rx == (^rx_data)) begin
+        parity_err = 0;
+        //parity_data_out = rx_data;
+      end
+    else begin
+      parity_err = 1'b1;
+      //parity_data_out = 8'b0;
+    end
+  end
+else
+  parity_err = 0;
+  end
+endmodule
+
+
+module tb_parity();
+  reg rx, parity_en;
+  reg[7:0] rx_data_in;
+  PARITY_CHECK parity_check(.parity_en(parity_en), .rx(rx), .rx_data_in(rx_data_in));
+  initial begin
+    parity_en = 1; rx = 1; rx_data_in = 8'b11110000;
+    #2  rx_data_in = 8'b11110000;
+    #2  parity_en = 0;
+    #2  parity_en = 1; rx_data_in = 8'b1110000;
+  end
+
+endmodule
