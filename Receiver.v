@@ -1,4 +1,3 @@
-`timescale 1ns/1ns
 /*
  * 8-bit UART Receiver.
  * Able to receive 8 bits of serial data, one start bit, one stop bit.
@@ -7,7 +6,7 @@
  * When receive is in progress {busy} is driven high.
  * Clock should be decreased to baud rate.
  */
-module Uart8Receiver (
+module Receiver (
     input  wire       clk,  // baud rate
     input  wire       en,
     input  wire       in,   // rx
@@ -145,49 +144,6 @@ endmodule
 
 
 
-
-
-
-
-
-
-module tb_receiver();
-  reg clk, en, in;
-  wire parity_en;
-  wire parity_err;
-  wire done, busy, err;
-  wire [7:0]out;
-  Uart8Receiver uart8receiver(.parity_en(parity_en), .clk(clk), .en(en), .in(in), .parity_err(parity_err), .out(out), .busy(busy), .err(err), .done(done));
-  PARITY_CHECK parity_check(.parity_en(parity_en), .rx(in), .rx_data_in(out), .parity_err(parity_err));
-  always #1 clk = ~clk;
-  
-  initial begin
-    clk <= 0; en <= 1; in <= 0;
-    #3 in = 0; 
-    #2 en = 1;
-    #32 in = 1;
-    #32 in = 0;
-    #32 in = 1;
-    #32 in = 0; 
-    #32 in = 1;
-    #32 in = 0;
-    #32 in = 1;
-    #32 in = 1;
-    #32 in = 0;   // Parity bit (Parity error)
-    #32 in = 1;   //stop bit                   
-  end
-  
-  
-endmodule
-
-
-
-
-
-
-
-
-
 module PARITY_CHECK(parity_err, parity_en, rx, rx_data_in, /*parity_data_out*/);
   output reg parity_err;
   //output reg[7:0] parity_data_out;
@@ -213,15 +169,4 @@ else
 endmodule
 
 
-module tb_parity();
-  reg rx, parity_en;
-  reg[7:0] rx_data_in;
-  PARITY_CHECK parity_check(.parity_en(parity_en), .rx(rx), .rx_data_in(rx_data_in));
-  initial begin
-    parity_en = 1; rx = 1; rx_data_in = 8'b11110000;
-    #2  rx_data_in = 8'b11110000;
-    #2  parity_en = 0;
-    #2  parity_en = 1; rx_data_in = 8'b1110000;
-  end
 
-endmodule
