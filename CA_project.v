@@ -112,6 +112,7 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
      
   end
   
+  
 
     
   always @(posedge PCLK or negedge PRESETn) 
@@ -133,7 +134,7 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
      
       PENABLE  <= 1'b0;
       PADDR    <= ADDR_in;
-      PWRITE   <= WRITE_in;
+      PWRITE    = WRITE_in;
       PPROT    <= PROT_in;
       
       if(PWRITE)begin
