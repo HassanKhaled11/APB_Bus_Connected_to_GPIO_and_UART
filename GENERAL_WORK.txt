@@ -1,0 +1,599 @@
+`timescale 1ns/1ns
+
+/*
+ * Simple 8-bit UART realization.
+ * Combine receiver, transmitter and baud rate generator.
+ * Able to operate 8 bits of serial data, one start bit, one stop bit.
+ */
+ 
+module Uart  #(
+    parameter CLOCK_RATE = 100000000, // board internal clock
+    parameter BAUD_RATE = 9600
+)(
+    input wire clk,
+    input wire[31:0] pAdd,      //Is not used
+    input wire[31:0] pwData,
+    input wire rst_n,
+    input wire pwr,
+    input wire[1:0] psel,       //If psel == 2'b10 then UART is choose
+    input wire pen,
+    input wire[31:0] prdata,
+    input wire pready,
+    input wire rxd,
+    output reg txd
+);
+wire txStart, rxStart, rxDone, txDone;
+wire [7:0] txData, rxData;
+
+
+// remaining busy, err, parity_err, parity_en
+Receiver rxInst (.clk(clk), .en(rxStart), .done(rxDone), .out(rxData)); 
+
+//remaining busy
+Transmitter txInst (.tx_clk(clk), .rst_n(rst_n), .tx_start(txStart), .tx_enable(pen), .tx_data_in(txData),
+                   .done(txDone));
+
+APB_interface apb_interface(.pAdd(pAdd), .pwData(pwData), .psel(psed), .pen(pen), .pwr(pwr), .rst_n(rst_n),
+                            .clk(clk), .prdata(prdata), .pready(pready), .txStart(txStart), .txData(txData),
+                            .rxData(rxData), .txDone(txDone), .rxDone(rxDone), .rxStart(rxStart));
+endmodule
+
+
+module APB_interface
+(
+  input wire [31:0] pwAdd,    //Is not used
+  input wire [31:0] pwData,      
+  input wire [1:0] psel,       //if psel == 10 -> choose UART
+  input wire pen,
+  input wire pwr,             //if pwr == 1 -> enable TX, else enable RX
+  input wire rst_n,         
+  input wire clk,  
+  input wire [7:0] rxData,
+  input wire rxDone,           //Indication that receiver received 8 bits
+  input wire txDone,           //Indication that transmitter sent 8 bits
+  output reg rxStart,    
+  output reg txStart,     
+  output reg[7:0] txData,   
+  output reg[31:0] prdata,
+  output reg pready
+);
+
+reg [31:0]fifo;    
+reg [1:0]count4;       //Indicates that the TX module has read the four bytes from fifo
+reg[2:0] state;
+reg[2:0] next_state;
+
+localparam [2:0] IDLE            =       3'b000,
+                 FIFO_WRITE      =       3'b001,
+                 CHECK_FIFO      =       3'b010,
+                 TRANSFER        =       3'b011,
+                 RECEIVE         =       3'b100,
+                 STORE           =       3'b101,
+                 BUS_READ        =       3'b110;
+
+
+
+
+always @(posedge clk or ~rst_n) begin
+  if(~rst_n)
+    state = IDLE;
+  else
+    state = next_state;
+end
+
+
+always@(state)begin
+  case(state)
+    IDLE: begin
+      if(psel) begin
+        if(pwr) next_state = FIFO_WRITE;
+        else    next_state = RECEIVE;
+      end
+    end
+
+    FIFO_WRITE: 
+      next_state = CHECK_FIFO;
+
+    CHECK_FIFO: begin
+      if(&count4) begin   //if count4 == 2'b11
+        next_state <= IDLE;
+        count4 <= 0;
+      end
+      else 
+      next_state = TRANSFER;
+    end
+      
+
+    TRANSFER: begin
+      if(txDone)    //Transmitter sent the data 8 bits 
+        next_state = CHECK_FIFO;
+    end
+
+
+    RECEIVE: begin
+      if(rxDone)     //Receiver received the data 8 bits
+        next_state = STORE;
+    end
+
+
+    STORE: begin
+      if(&count4)
+        next_state = BUS_READ;
+      else
+        next_state = RECEIVE;
+    end
+
+    BUS_READ: 
+      next_state = IDLE;
+
+  endcase
+end
+
+
+always@(state) begin
+  case(state)
+    IDLE: begin
+      txStart <= 0;
+      rxStart <= 0;
+      txData <= 0;
+      prdata <= 0;
+      fifo <= 0;
+    end
+
+    FIFO_WRITE: begin
+      fifo <= pwData;
+    end
+
+
+    CHECK_FIFO: begin
+      txStart <= 0;
+      txData <= fifo[7:0];
+      fifo <= fifo >> 8;
+      count4 <= count4 + 2'b01;
+    end
+
+
+    TRANSFER: begin
+      txStart <= 1;
+    end
+
+
+    RECEIVE: begin
+      rxStart <= 1;
+    end
+
+
+    STORE: begin
+      rxStart <= 0;
+      fifo[7:0] = rxData;
+      fifo <= fifo << 8;
+      count4 <= count4 + 2'b01;
+    end
+
+    BUS_READ: begin
+      prdata <= fifo;
+    end
+  endcase
+end
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+ * 8-bit UART Receiver.
+ * Able to receive 8 bits of serial data, one start bit, one stop bit.
+ * When receive is complete {done} is driven high for one clock cycle.
+ * Output data should be taken away by a few clocks or can be lost.
+ * When receive is in progress {busy} is driven high.
+ * Clock should be decreased to baud rate.
+ */
+module Receiver (
+    input  wire       clk,  // baud rate
+    input  wire       en,
+    input  wire       in,   // rx
+    input  wire       parity_err,
+    output reg        parity_en,
+    output reg  [7:0] out,  // received data
+    output reg        done, // end on transaction
+    output reg        busy, // transaction is in process
+    output reg        err   // error while receiving data
+);
+
+    
+    // states of state machine
+    reg [2:0] RESET = 3'b000;
+    reg [2:0] IDLE = 3'b001;
+    reg [2:0] DATA_BITS = 3'b010;
+    reg [2:0] PARITY = 3'b011;
+    reg [2:0] STOP_BIT = 3'b100;
+
+    reg [2:0] state;
+    reg [2:0] bitIdx = 3'b0; // for 8-bit data
+    reg [1:0] inputSw = 2'b0; // shift reg for input signal state
+    reg [3:0] clockCount = 4'b0; // count clocks for 16x oversample
+    reg [7:0] receivedData = 8'b0; // temporary storage for input data
+
+    assign parity_err = 0;
+    initial begin
+        out <= 8'b0;
+        err <= 1'b0;
+        done <= 1'b0;
+        busy <= 1'b0;
+        parity_en <= 0;
+    end
+
+    always @(posedge clk) begin
+        inputSw = { inputSw[0], in };
+
+        if (!en) begin
+            state = RESET;
+        end
+
+        case (state)
+            RESET: begin
+                out <= 8'b0;
+                err <= 1'b0;
+                done <= 1'b0;
+                busy <= 1'b0;
+                bitIdx <= 3'b0;
+                clockCount <= 4'b0;
+                receivedData <= 8'b0;
+                if (en) begin
+                    state <= IDLE;
+                end
+            end
+
+            IDLE: begin
+                done <= 1'b0;
+                if (clockCount >= 4'b0111) begin
+                    state <= DATA_BITS;
+                    out <= 8'b0;
+                    bitIdx <= 3'b0;
+                    clockCount <= 4'b0;
+                    receivedData <= 8'b0;
+                    busy <= 1'b1;
+                    err <= 1'b0;
+                end else if (!(&inputSw) || |clockCount) begin
+                    // Check bit to make sure it's still low
+                    if (&inputSw) begin
+                        err <= 1'b1;
+                        state <= RESET;
+                    end
+                    clockCount <= clockCount + 4'b1;
+                end
+            end
+
+            // Wait 8 full cycles to receive serial data
+            DATA_BITS: begin
+                if (&clockCount) begin // save one bit of received data
+                    clockCount <= 4'b0;
+                    // TODO: check the most popular value
+                    receivedData[bitIdx] <= inputSw[0];
+                    if (&bitIdx) begin
+                        bitIdx <= 3'b0;
+                        state <= PARITY;
+                    end else begin
+                        bitIdx <= bitIdx + 3'b1;
+                    end
+                end else begin
+                    clockCount <= clockCount + 4'b1;
+                end
+            end
+  
+            PARITY: begin
+              if(&clockCount) begin
+                clockCount <= 0;
+                parity_en <= 1;
+                out <= receivedData;  //To send the data to parity checker module
+                if(~parity_err)
+                  state <= STOP_BIT;
+                else
+                  state <= RESET;
+              end
+            else
+              clockCount <= clockCount + 4'b1;
+            end
+            
+
+            /*
+            * Baud clock may not be running at exactly the same rate as the
+            * transmitter. Next start bit is allowed on at least half of stop bit.
+            */
+            STOP_BIT: begin
+                if (&clockCount || (clockCount >= 4'h8 && !(|inputSw))) begin
+                    state <= IDLE;
+                    done <= 1'b1;
+                    busy <= 1'b0;
+                    out <= receivedData;
+                    clockCount <= 4'b0;
+                end else begin
+                    clockCount <= clockCount + 1;
+                    // Check bit to make sure it's still high
+                    if (!(|inputSw)) begin
+                        err <= 1'b1;
+                        state <= RESET;
+                    end
+                end
+            end
+            default: state <= IDLE;
+        endcase
+    end
+endmodule
+
+
+
+
+
+module tb_receiver();
+  reg clk, en, in;
+  wire parity_en;
+  wire parity_err;
+  wire done, busy, err;
+  wire [7:0]out;
+  Receiver uart8receiver(.parity_en(parity_en), .clk(clk), .en(en), .in(in), .parity_err(parity_err), .out(out), .busy(busy), .err(err), .done(done));
+  PARITY_CHECK parity_check(.parity_en(parity_en), .rx(in), .rx_data_in(out), .parity_err(parity_err));
+  always #1 clk = ~clk;
+  
+  initial begin
+    clk <= 0; en <= 1; in <= 0;
+    #3 in = 0; 
+    #2 en = 1;
+    #32 in = 1;
+    #32 in = 0;
+    #32 in = 1;
+    #32 in = 0; 
+    #32 in = 1;
+    #32 in = 0;
+    #32 in = 1;
+    #32 in = 1;
+    #32 in = 0;   // Parity bit (Parity error)
+    #32 in = 1;   //stop bit                   
+  end
+endmodule
+
+
+
+
+
+
+
+
+
+module PARITY_CHECK(parity_err, parity_en, rx, rx_data_in, /*parity_data_out*/);
+  output reg parity_err;
+  //output reg[7:0] parity_data_out;
+  input[7:0] rx_data_in;
+  reg[7:0] rx_data;
+  input wire rx, parity_en;
+  
+  always@(*) begin
+    if(parity_en) begin
+      rx_data = rx_data_in;
+      if(rx == (^rx_data)) begin
+        parity_err = 0;
+        //parity_data_out = rx_data;
+      end
+    else begin
+      parity_err = 1'b1;
+      //parity_data_out = 8'b0;
+    end
+  end
+else
+  parity_err = 0;
+  end
+endmodule
+
+
+module tb_parity();
+  reg rx, parity_en;
+  reg[7:0] rx_data_in;
+  PARITY_CHECK parity_check(.parity_en(parity_en), .rx(rx), .rx_data_in(rx_data_in));
+  initial begin
+    parity_en = 1; rx = 1; rx_data_in = 8'b11110000;
+    #2  rx_data_in = 8'b11110000;
+    #2  parity_en = 0;
+    #2  parity_en = 1; rx_data_in = 8'b1110000;
+  end
+
+endmodule
+
+
+
+//Module Piso implementation 
+module piso(input wire clk,input wire rst_n,input wire load,input wire[7:0]data_in,output reg data_out,output wire data_sent);
+  reg[7:0] data_reg;
+  reg[2:0] count;
+  
+  always @(posedge clk or negedge rst_n)  begin
+    if(!rst_n) begin
+      data_reg <= 8'h00; //Reset data register
+      count    <= 3'b000; 
+ 
+   end 
+    else begin
+      //if load signal is set then load the parallel data inside the register and reset serial data out
+      if(load)
+      {data_reg,data_out} <= {data_in,1'b0};
+    // if load is 0 then shift the data register by 1 bit right and out the right significant inside register to the serial out
+      else begin
+        {data_reg,data_out} <= {1'b0,data_reg};
+        count = count + 1'b1;
+      end
+    end
+  end
+  
+  assign data_sent = (count == 3'b100)?1'b1:1'b0; 
+ 
+  
+endmodule
+
+//Parity Generator Module
+module parity_generator #(parameter data_width = 8)(input wire parity_enable,input wire[data_width-1:0] data,output reg parity);
+  always@(parity_enable or data) begin
+    if(parity_enable)
+      parity = ^data;
+    else
+      parity = 0;
+  end
+endmodule
+
+//MUX module which generate bit (start/data/parity/stop) according to section number
+module mux_tx(input wire data_bit,input wire parity_bit,input wire[2:0] select,output reg mux_out);
+  reg start_bit = 1'b0;
+  reg stop_bit  = 1'b1;
+
+  always@(select or data_bit) begin
+    case(select)
+      3'b001:   mux_out = start_bit;
+      3'b010:   mux_out = data_bit;
+      3'b011:   mux_out = parity_bit;
+      3'b011:   mux_out = stop_bit;
+      3'b100:   mux_out = stop_bit;
+      default: mux_out = stop_bit;
+    endcase
+  end
+endmodule
+
+//Finite State Machine Module
+module fsm_tx(
+    input wire tx_clk,
+    input wire rst_n,
+    input wire tx_start,
+    input wire tx_enable,
+    input wire data_sent,
+    output reg select,
+    output reg load,
+    output reg parity_enable,
+    output reg done,
+    output reg busy
+);
+  localparam[2:0] IDLE        = 3'b000,
+                  START_BIT   = 3'b001,
+                  DATA_BIT    = 3'b010,
+                  PARITY_BIT  = 3'b011,
+                  STOP_BIT    = 3'b100;
+ 
+  
+ 
+  reg [2:0] state;
+  reg [2:0] next_state;
+    
+    always @(posedge tx_clk) begin
+      if(~rst_n)
+        state = IDLE;
+      else
+        state = next_state;
+    end
+    
+    always @(state) begin
+      case(state)
+            IDLE       : begin
+                if (tx_start & tx_enable)
+                    next_state   <= START_BIT;
+            end
+            START_BIT    : begin
+                state   <= DATA_BIT;
+            end
+            DATA_BIT     : begin // Wait 8 clock cycles for data bits to be sent
+                if (data_sent)
+                    next_state   <= PARITY_BIT;
+                else
+                    next_state   <= DATA_BIT;
+            end
+            PARITY_BIT   : begin // Send out parity bit (even parity)
+                next_state   <= STOP_BIT;
+            end
+            STOP_BIT     : begin // Send out Stop bit (high)
+                next_state   <= IDLE;
+            end
+            default      : begin
+                next_state   <= IDLE;
+            end
+        endcase
+    end
+    
+    always @(state) begin
+        case (state)
+            IDLE            : begin
+                select        <= 2'bxx;
+                load          <= 1'b1;
+                parity_enable <= 1'b0;
+                done          <= 1'b0;
+                busy          <= 1'b0;
+            end
+            START_BIT  : begin
+                select        <= 2'b00;
+                load          <= 1'b1;
+                parity_enable <= 1'b1;
+                done          <= 1'b0;
+                busy          <= 1'b1;
+            end
+            DATA_BIT  : begin // Wait 8 clock cycles for data bits to be sent
+                select        <= 2'b01;
+                load          <= 1'b0;
+                parity_enable <= 1'b1;
+                done          <= 1'b0;
+                busy          <= 1'b1;
+            end
+            PARITY_BIT   : begin // Send out parity bit (even parity)
+                select        <= 2'b10;
+                load          <= 1'b0;
+                parity_enable <= 1'b1;
+                done          <= 1'b0;
+                busy          <= 1'b1;
+            end
+            STOP_BIT   : begin // Send out Stop bit (high)
+                select        <= 2'b11;
+                load          <= 1'b1;
+                parity_enable <= 1'b0;
+                done          <= 1'b1;
+                busy          <= 1'b1;
+            end
+            default     : begin
+                state   <= IDLE;
+            end
+        endcase
+    end
+endmodule
+
+module transmitter(
+    input  wire       tx_clk,         // baud rate
+    input  wire       rst_n,         //reset
+    input  wire       tx_start,     // start of transaction
+    input  wire       tx_enable,
+    input  wire [7:0] tx_data_in,   // data to transmit
+    output reg        tx_data_out,  // out of mux
+    output reg        done,         // end on transaction
+    output reg        busy          // transaction is in process
+);
+   wire data_sent,load,parity_enable,parity_bit;
+   wire data_bit; //Data bit without start or stop bit to be input for mux
+   wire[2:0] select;
+   
+  fsm_tx t1(
+  .tx_clk(tx_clk),
+  .rst_n(rst_n),
+  .tx_start(tx_start),
+  .tx_enable(tx_enable),
+  .data_sent(data_sent),
+  .select(select),
+  .load(load),
+  .parity_enable(parity_enable),
+  .done(done),
+  .busy(busy)
+ );
+ piso t2(.clk(clk),.reset(reset),.load(load),.data_in(tx_data_in),.data_out(data_bit),.data_sent(data_sent));
+ parity_generator t3(.parity_enable(parity_enable),.data(tx_data_in),.parity(parity_bit));
+ mux_tx t4(.data_bit(data_bit),.parity_bit(parity_bit),.select(select),.mux_out(tx_data_out));
+    
+endmodule
