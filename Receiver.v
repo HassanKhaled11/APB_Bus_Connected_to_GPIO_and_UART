@@ -8,7 +8,7 @@
  */
 module Receiver (
     input  wire       clk,  // baud rate
-    input  wire       en,
+    input  wire       rxStart,
     input  wire       in,   // rx
     input  wire       parity_err,
     output reg        parity_en,
@@ -18,13 +18,13 @@ module Receiver (
     output reg        err   // error while receiving data
 );
 
-    
     // states of state machine
-    reg [2:0] RESET = 3'b000;
-    reg [2:0] IDLE = 3'b001;
-    reg [2:0] DATA_BITS = 3'b010;
-    reg [2:0] PARITY = 3'b011;
-    reg [2:0] STOP_BIT = 3'b100;
+    localparam [2:0] RESET         =      3'b000,
+                     IDLE          =      3'b001,
+                     DATA_BITS     =      3'b010,
+                     PARITY        =      3'b011,
+                     STOP_BIT      =      3'b100;
+    
 
     reg [2:0] state;
     reg [2:0] bitIdx = 3'b0; // for 8-bit data
@@ -32,19 +32,12 @@ module Receiver (
     reg [3:0] clockCount = 4'b0; // count clocks for 16x oversample
     reg [7:0] receivedData = 8'b0; // temporary storage for input data
 
-    assign parity_err = 0;
-    initial begin
-        out <= 8'b0;
-        err <= 1'b0;
-        done <= 1'b0;
-        busy <= 1'b0;
-        parity_en <= 0;
-    end
+
 
     always @(posedge clk) begin
         inputSw = { inputSw[0], in };
 
-        if (!en) begin
+        if (!rxStart) begin
             state = RESET;
         end
 
@@ -57,7 +50,7 @@ module Receiver (
                 bitIdx <= 3'b0;
                 clockCount <= 4'b0;
                 receivedData <= 8'b0;
-                if (en) begin
+                if (rxStart) begin
                     state <= IDLE;
                 end
             end
@@ -134,12 +127,12 @@ module Receiver (
                     end
                 end
             end
-
             default: state <= IDLE;
         endcase
     end
-
 endmodule
+
+
 
 
 
@@ -166,6 +159,20 @@ module PARITY_CHECK(parity_err, parity_en, rx, rx_data_in, /*parity_data_out*/);
 else
   parity_err = 0;
   end
+endmodule
+
+
+module tb_parity();
+  reg rx, parity_en;
+  reg[7:0] rx_data_in;
+  PARITY_CHECK parity_check(.parity_en(parity_en), .rx(rx), .rx_data_in(rx_data_in));
+  initial begin
+    parity_en = 1; rx = 1; rx_data_in = 8'b11110000;
+    #2  rx_data_in = 8'b11110000;
+    #2  parity_en = 0;
+    #2  parity_en = 1; rx_data_in = 8'b1110000;
+  end
+
 endmodule
 
 
