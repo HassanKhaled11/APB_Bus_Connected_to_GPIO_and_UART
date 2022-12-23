@@ -6,7 +6,7 @@
  * Able to operate 8 bits of serial data, one start bit, one stop bit.
  */
  
-module Uart  #(
+module Uart#(
     parameter CLOCK_RATE = 100000000, // board internal clock
     parameter BAUD_RATE = 9600
 )(
@@ -22,26 +22,57 @@ module Uart  #(
     input wire rxd,
     output reg txd
 );
-wire txStart, rxStart, rxDone, txDone;
+wire txStart, rxStart, rxDone, txDone, tx_data_out, busy;
 wire [7:0] txData, rxData;
 
 
 // remaining busy, err, parity_err, parity_en
-Receiver rxInst (.clk(clk), .en(rxStart), .done(rxDone), .out(rxData)); 
+Receiver rxInst (.clk(clk), .rxStart(pen), .done(rxDone), .out(rxData), .in(rxd)); 
 
 //remaining busy
-Transmitter txInst (.tx_clk(clk), .rst_n(rst_n), .tx_start(txStart), .tx_enable(pen), .tx_data_in(txData),
-                   .done(txDone));
+/*transmitter txInst (.tx_clk(clk), .rst_n(rst_n), .tx_start(txStart), .tx_enable(pen), .tx_data_in(txData),
+                   .done(txDone), .busy(busy), .tx_data_out(tx_data_out));*/
 
-APB_interface apb_interface(.pAdd(pAdd), .pwData(pwData), .psel(psed), .pen(pen), .pwr(pwr), .rst_n(rst_n),
+APB_interface apb_interface(.pAdd(pAdd), .pwData(pwData), .psel(psel), .pen(pen), .pwr(pwr), .rst_n(rst_n),
                             .clk(clk), .prdata(prdata), .pready(pready), .txStart(txStart), .txData(txData),
                             .rxData(rxData), .txDone(txDone), .rxDone(rxDone), .rxStart(rxStart));
 endmodule
 
 
+
+
+
+
+module tb_Uart();
+
+reg clk, rst_n, pwr, pen, pready, rxd;
+reg [1:0] psel;
+reg [31:0] pwData, pAdd;
+wire prdata, txd;
+
+//Test transmitter
+Uart uart(.clk(clk), .pwData(pwData), .pAdd(pAdd), .rst_n(rst_n), .pwr(pwr), .psel(psel), .pen(pen),
+          .prdata(prdata), .pready(pready), .rxd(rxd), .txd(txd));
+
+always #1 clk = ~clk;
+
+initial begin
+  clk <= 0; pwData <= 0; pAdd <= 0; rst_n <= 0; pwr <= 0; psel <= 2'b00; pen <= 0; 
+  #3 pAdd <= 32'd15; pwr <= 1; psel <= 2'b10; rst_n = 1; pen <= 1;
+  #2 rxd <= 0; 
+  #150 rxd = 1;
+end
+endmodule
+
+
+
+
+
+
+
 module APB_interface
 (
-  input wire [31:0] pwAdd,    //Is not used
+  input wire [31:0] pAdd,    //Is not used
   input wire [31:0] pwData,      
   input wire [1:0] psel,       //if psel == 10 -> choose UART
   input wire pen,
@@ -199,7 +230,7 @@ endmodule
  */
 module Receiver (
     input  wire       clk,  // baud rate
-    input  wire       en,
+    input  wire       rxStart,
     input  wire       in,   // rx
     input  wire       parity_err,
     output reg        parity_en,
@@ -209,13 +240,13 @@ module Receiver (
     output reg        err   // error while receiving data
 );
 
-    
     // states of state machine
-    reg [2:0] RESET = 3'b000;
-    reg [2:0] IDLE = 3'b001;
-    reg [2:0] DATA_BITS = 3'b010;
-    reg [2:0] PARITY = 3'b011;
-    reg [2:0] STOP_BIT = 3'b100;
+    localparam [2:0] RESET         =      3'b000,
+                     IDLE          =      3'b001,
+                     DATA_BITS     =      3'b010,
+                     PARITY        =      3'b011,
+                     STOP_BIT      =      3'b100;
+    
 
     reg [2:0] state;
     reg [2:0] bitIdx = 3'b0; // for 8-bit data
@@ -223,19 +254,12 @@ module Receiver (
     reg [3:0] clockCount = 4'b0; // count clocks for 16x oversample
     reg [7:0] receivedData = 8'b0; // temporary storage for input data
 
-    assign parity_err = 0;
-    initial begin
-        out <= 8'b0;
-        err <= 1'b0;
-        done <= 1'b0;
-        busy <= 1'b0;
-        parity_en <= 0;
-    end
+
 
     always @(posedge clk) begin
         inputSw = { inputSw[0], in };
 
-        if (!en) begin
+        if (!rxStart) begin
             state = RESET;
         end
 
@@ -248,7 +272,7 @@ module Receiver (
                 bitIdx <= 3'b0;
                 clockCount <= 4'b0;
                 receivedData <= 8'b0;
-                if (en) begin
+                if (rxStart) begin
                     state <= IDLE;
                 end
             end
@@ -335,19 +359,19 @@ endmodule
 
 
 module tb_receiver();
-  reg clk, en, in;
+  reg clk, rxStart, in;
   wire parity_en;
   wire parity_err;
   wire done, busy, err;
   wire [7:0]out;
-  Receiver uart8receiver(.parity_en(parity_en), .clk(clk), .en(en), .in(in), .parity_err(parity_err), .out(out), .busy(busy), .err(err), .done(done));
+  Receiver receiver(.parity_en(parity_en), .clk(clk), .rxStart(rxStart), .in(in), .parity_err(parity_err), .out(out), .busy(busy), .err(err), .done(done));
   PARITY_CHECK parity_check(.parity_en(parity_en), .rx(in), .rx_data_in(out), .parity_err(parity_err));
   always #1 clk = ~clk;
   
   initial begin
-    clk <= 0; en <= 1; in <= 0;
+    clk <= 0; rxStart <= 1; in <= 0;
     #3 in = 0; 
-    #2 en = 1;
+    #2 rxStart = 1;
     #32 in = 1;
     #32 in = 0;
     #32 in = 1;
@@ -592,7 +616,7 @@ module transmitter(
   .done(done),
   .busy(busy)
  );
- piso t2(.clk(clk),.reset(reset),.load(load),.data_in(tx_data_in),.data_out(data_bit),.data_sent(data_sent));
+ piso t2(.clk(clk),.rst_n(rst_n),.load(load),.data_in(tx_data_in),.data_out(data_bit),.data_sent(data_sent));
  parity_generator t3(.parity_enable(parity_enable),.data(tx_data_in),.parity(parity_bit));
  mux_tx t4(.data_bit(data_bit),.parity_bit(parity_bit),.select(select),.mux_out(tx_data_out));
     
