@@ -1,8 +1,0 @@
-{B:/CSE/CSE Senior 1 Semester 1/Computer Architecture/Project/Computer Arch Project/GPIO.v} {1 {vlog -work work {B:\CSE\CSE Senior 1 Semester 1\Computer Architecture\Project\Computer Arch Project\GPIO.v}
-Model Technology ModelSim ALTERA vlog 10.1d Compiler 2012.11 Nov  2 2012
--- Compiling module gpio
-
-Top level modules:
-	gpio
-
-} {} {}}
