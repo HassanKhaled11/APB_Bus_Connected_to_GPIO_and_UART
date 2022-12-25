@@ -1,3 +1,9 @@
+/*
+ * Simple 8-bit UART realization.
+ * Combine receiver, transmitter and baud rate generator.
+ * Able to operate 8 bits of serial data, one start bit, one stop bit.
+ */
+ 
 module Uart#(
     parameter CLOCK_RATE = 100000000, // board internal clock
     parameter BAUD_RATE = 9600
@@ -9,9 +15,9 @@ module Uart#(
     input wire pwr,
     input wire[1:0] psel,       //If psel == 2'b10 then UART is choose
     input wire pen,
-    input wire[31:0] prdata,
-    input wire pready,
     input wire rxd,
+    output wire[31:0] prdata,
+    output wire pready,
     output reg txd
 );
 wire txStart, rxStart, rxDone, txDone, tx_data_out, busy;

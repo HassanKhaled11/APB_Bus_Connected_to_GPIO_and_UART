@@ -23,12 +23,14 @@ reg[2:0] state;
 reg[2:0] next_state;
 
 localparam [2:0] IDLE            =       3'b000,
-                 FIFO_WRITE      =       3'b001,
-                 CHECK_FIFO      =       3'b010,
-                 TRANSFER        =       3'b011,
-                 RECEIVE         =       3'b100,
-                 STORE           =       3'b101,
-                 BUS_READ        =       3'b110;
+                 READY           =       3'b001,
+                 FIFO_WRITE      =       3'b010,
+                 CHECK_FIFO      =       3'b011,
+                 TRANSFER        =       3'b100,
+                 RECEIVE         =       3'b101,
+                 STORE           =       3'b110,
+                 BUS_READ        =       3'b111;
+
 
 
 
@@ -44,10 +46,15 @@ end
 always@(state)begin
   case(state)
     IDLE: begin
-      if(psel) begin
-        if(pwr) next_state = FIFO_WRITE;
-        else    next_state = RECEIVE;
-      end
+      if(psel == 2'b10)      // The Processor wants UART 
+        next_state = READY;
+    end
+
+    READY: begin    
+      if(pwr)       //Write operation -> enable transmitter module
+        next_state = CHECK_FIFO;
+      else if(~pwr) //Read operation -> enable Receiver module
+        next_state = RECEIVE;
     end
 
     FIFO_WRITE: 
@@ -82,8 +89,10 @@ always@(state)begin
         next_state = RECEIVE;
     end
 
-    BUS_READ: 
-      next_state = IDLE;
+    BUS_READ: begin
+      if(pready)
+        next_state = IDLE;
+    end
 
   endcase
 end
@@ -97,10 +106,23 @@ always@(state) begin
       txData <= 0;
       prdata <= 0;
       fifo <= 0;
+      pready <= 0;
+    end
+
+
+    READY: begin
+      txStart <= 0;
+      rxStart <= 0;
+      txData <= 0;
+      prdata <= 0;
+      fifo <= 0;
+      pready <= 1;
     end
 
     FIFO_WRITE: begin
-      fifo <= pwData;
+      pready <= 0;
+      if(pen) fifo <= pwData;
+
     end
 
 
@@ -118,19 +140,21 @@ always@(state) begin
 
 
     RECEIVE: begin
+      pready <= 0;
       rxStart <= 1;
     end
 
 
     STORE: begin
       rxStart <= 0;
-      fifo[7:0] = rxData;
+      fifo[7:0] <= rxData;
       fifo <= fifo << 8;
       count4 <= count4 + 2'b01;
     end
 
     BUS_READ: begin
       prdata <= fifo;
+      pready <= 1;        // Receiver tells the APB bus that the data you want is available now on the bus
     end
   endcase
 end
