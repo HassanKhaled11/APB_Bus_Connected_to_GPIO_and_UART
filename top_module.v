@@ -13,12 +13,13 @@ module top_module #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, p
   input wire                    top_Transfer   ,     
   input wire                    top_WRITE_in   ,
   input wire                    top_UART_rx    ,
+  input wire                    Ready          ,
  
   //-----------------OUTPUTS------------------------
   
-  output reg                    top_SLVERR_out ,
-  output reg [DATA_WIDTH-1:0]   top_DATA_out   ,
-  output wire                   top_UART_tx    
+  output wire                    top_SLVERR_out ,
+  output wire [DATA_WIDTH-1:0]   top_DATA_out   ,      // wire so that the output can'y be controlled from outside source
+  output wire                    top_UART_tx    
   
   );
 
@@ -45,27 +46,27 @@ module top_module #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, p
   .ADDR_WIDTH(ADDR_WIDTH),
   .STROBE_WIDTH(STROBE_WIDTH),
   .SLAVES_NUM(SLAVES_NUM))
-  APB_bus_1(CLK ,
-   RST ,
-   top_ADDR_in,
-   top_DATA_in,
-   top_PROT_in,
-   top_SEL_in,
-   top_STROB_in,
-   top_Transfer,
-   top_WRITE_in,
-   data_read,
-   ready,
-   slave_error,
-   top_SLVERR_out,
-   top_DATA_out,
-   address,
-   select,
-   enable,
-   write_flag,
-   data_write,
-   strobe,
-   protection); // coninue.....
+  APB_bus_1(.PCLK(CLK) ,
+   .PRESETn(RST) ,
+   .ADDR_in(top_ADDR_in),
+   .DATA_in(top_DATA_in),
+   .PROT_in(top_PROT_in),
+   .SEL_in(top_SEL_in),
+   .STROB_in(top_STROB_in),
+   .Transfer(top_Transfer),
+   .WRITE_in(top_WRITE_in),
+   .PRDATA(data_read),
+   .PREADY(ready),
+   .PSLVERR(slave_error),
+   .SLVERR_out(top_SLVERR_out),
+   .DATA_out(top_DATA_out),
+   .PADDR(address),
+   .PSEL(select),
+   .PENABLE(enable),
+   .PWRITE(write_flag),
+   .PWDATA(data_write),
+   .PSTRB(strobe),
+   .PPROT(protection)); // coninue.....
   
   
   
@@ -83,7 +84,7 @@ module top_module #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, p
     RST,
     write_flag,
     select,       //If psel == 2'b10 then UART is choose
-    enable,
+    1,                  //delete it 
     data_read,
     ready,
     top_UART_rx,

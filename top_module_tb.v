@@ -15,13 +15,14 @@ parameter BAUD_RATE     = 9600     ;
 reg   CLK                                  = 0 ;
 reg   RST                                  = 0 ;
 reg   [ADDR_WIDTH-1:0]  top_ADDR_in        = 0 ;
-reg   [DATA_WIDTH-1:0]  top_DATA_in        = 0 ;
+reg   [DATA_WIDTH-1:0]  top_DATA_in        = 15 ;
 reg   [2:0]  top_PROT_in                   = 0 ;
-reg   [SLAVES_NUM-1:0]  top_SEL_in         = 0 ;
+reg   [SLAVES_NUM-1:0]  top_SEL_in         = 2'b10 ;
 reg   [STROBE_WIDTH-1:0]  top_STROB_in     = 0 ;
-reg   top_Transfer                         = 0 ;
-reg   top_WRITE_in                         = 0 ;
+reg   top_Transfer                         = 1 ;
+reg   top_WRITE_in                         = 1 ;
 reg   top_UART_rx                          = 0 ;
+reg   ready                                = 1 ;
 
 // top_module Outputs
 wire  top_SLVERR_out                       ;
@@ -31,12 +32,12 @@ wire  top_UART_tx                          ;
 
 initial
 begin
-    forever #(PERIOD/2)  clk=~clk;
+    forever #(PERIOD/2)  CLK=~CLK;
 end
 
 initial
 begin
-    #(PERIOD*2) rst_n  =  1;
+    #(PERIOD*2) RST  =  1;
 end
 
 top_module #(
@@ -57,7 +58,8 @@ top_module #(
     .top_Transfer            ( top_Transfer                       ),
     .top_WRITE_in            ( top_WRITE_in                       ),
     .top_UART_rx             ( top_UART_rx                        ),
-
+    .Ready                   ( ready                              ),
+    
     .top_SLVERR_out          ( top_SLVERR_out                     ),
     .top_DATA_out            ( top_DATA_out    [DATA_WIDTH-1:0]   ),
     .top_UART_tx             ( top_UART_tx                        )
@@ -66,7 +68,7 @@ top_module #(
 initial
 begin
 
-    $finish;
+    $monitor("CLK=%d , ready = %d , select = %d ,top_data_in = %d , top_UART_tx = %d",CLK , ready , top_SEL_in , top_DATA_in , top_UART_tx  );
 end
 
 endmodule
