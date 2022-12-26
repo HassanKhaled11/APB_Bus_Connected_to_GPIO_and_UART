@@ -1,51 +1,70 @@
-module gpio(clk, rst, BUS_W, BUS_WDATA, BUS_RDATA, pins);
-  output reg[5:0] pins;
+module GPIO(clk, rst_n, BUSW, BUSWDATA, BUSRDATA, REGSEL, pins);
+ 	inout[7:0] pins;
 	input clk;
-	input rst;
-	reg[5:0] DIR;
-	reg PCTL;
-	reg[5:0] DATA;
+	input rst_n;
+	input [1:0] REGSEL;
+	
+	reg[7:0] DIR; //R/W
+	reg[7:0] PIN; //READONLY
+	reg PCTL;	//R/W
+	reg[7:0] PORT; //R/W
 
-	output reg BUS_W;
-	output reg [7:0] BUS_WDATA;
-//input BUS_R;
-	input [7:0] BUS_RDATA;
-//reg[1:0] REGSEL;
-	reg[5:0] msk;
+	input BUSW;
+	input [7:0] BUSWDATA;
+	output reg [7:0] BUSRDATA;
+	
+	
+	
+	assign pins = PIN;
+
+	initial begin
+		PORT <= 8'b00000000;
+		DIR <= 8'b00000000;
+		PCTL <= 0;
+		BUSRDATA <= 8'b00000000;
+	end
+	
 	
 
-	always @(posedge clk, posedge rst) begin
-		if(rst) begin
-			DATA <= 6'b000000;
-			DIR <= 6'b000000;
+	always @(posedge clk, negedge rst_n) begin
+		if(!rst_n) begin
+			PORT <= 8'b00000000;
+			DIR <= 8'b00000000;
 			PCTL <= 0;
+			BUSRDATA <= 8'b00000000;
 		end
 
-		else begin
-			
-			case (BUS_RDATA[7:6])
-				2'b00: begin 
-						PCTL = BUS_RDATA[0];
-						if(PCTL) DIR[1:0] = 2'b10; //TX and RX
+		else if(BUSW) begin
+			case (REGSEL)
+				2'b01:begin 
+						   PCTL = BUSWDATA[0];
+						   if(PCTL) begin
+						     DIR = 8'b00000010; //TX and RX
+						     BUSRDATA = 8'b00000000;
+						   end
 				      end
-				2'b01: DIR = BUS_RDATA[5:0];
-				2'b10: DATA = BUS_RDATA[5:0];
+				2'b10: DIR = BUSWDATA;
+				2'b11: PORT = BUSWDATA;		
 			endcase
 		end
 	end
 
 	always @(posedge clk) begin
-		if(PCTL) begin
-			BUS_W <= 1;
-			DATA[5:2] <= 4'b0000;
-			BUS_WDATA[0] <= DATA[0]; //TX PIN
-			DATA[1] <= BUS_RDATA[0]; //RX PIN
+		if(PCTL) begin //UART
+			PORT[7:2] <= 6'b000000;
+			PIN = (pins & ~DIR) | (DIR & PORT);
+			if(!BUSW) BUSRDATA[0] <= PIN[0]; //RX PIN
+			else PORT[1] <= BUSWDATA[0]; //TX PIN
 		end
 
-		else if(PCTL==0) begin
-			pins <= DATA & DIR;
+		else if(PCTL==0) begin //DIO
+			PIN = (pins & ~DIR) | (DIR & PORT);
+			if(!BUSW) BUSRDATA[7:0] <= PIN;
 		end
-	end	
+	end
+
+	
+	
 			
 					
 endmodule
