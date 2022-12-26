@@ -75,6 +75,8 @@ module Receiver (
                 end
             end
 
+
+
             // Wait 8 full cycles to receive serial data
             DATA_BITS: begin
                 if (&clockCount) begin // save one bit of received data
@@ -92,6 +94,8 @@ module Receiver (
                 end
             end
   
+
+
             PARITY: begin
               if(&clockCount) begin
                 clockCount <= 0;
