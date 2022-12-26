@@ -8,17 +8,18 @@ module tb_APB_bus();
 parameter PERIOD        = 50 ;
 parameter DATA_WIDTH    = 'd32;
 parameter ADDR_WIDTH    = 'd32;
-parameter STROBE_WIDTH  = 'd4 ;
 parameter SLAVES_NUM    = 'd2 ;
+
+parameter STROBE_WIDTH  = 'd4 ;
 
 // APB_bus Inputs
 reg   [ADDR_WIDTH-1:0]  ADDR_in            = 0 ;
-reg   [DATA_WIDTH-1:0]  DATA_in            = 'd10 ;
+reg   [DATA_WIDTH-1:0]  DATA_in            = 'd1000 ;
 reg   [2:0]  PROT_in                       = 0 ;
-reg   [SLAVES_NUM-1:0]  SEL_in             = 1 ;
-reg   [STROBE_WIDTH-1:0]  STROB_in         = 0 ;
+reg   [SLAVES_NUM-1:0]  SEL_in             = 2'b10 ;
+reg   [STROBE_WIDTH-1:0]  STROB_in         = 'd2 ;
 reg   Transfer                             = 1 ;
-reg   WRITE_in                             = 0 ;
+reg   WRITE_in                             = 1 ;
 reg   PCLK                                 = 0 ;
 reg   PRESETn                              = 0 ;
 reg   [DATA_WIDTH-1:0]  PRDATA             = 'd500 ;
@@ -51,7 +52,7 @@ end
 initial
 begin
     #(PERIOD*2) PRESETn  =  1;
-    //#(PERIOD*4.5) PREADY =  0;
+    #(PERIOD*4.5) PREADY =  1;
     //# (PERIOD*4.5) Transfer = 0;
     
 end
@@ -90,7 +91,7 @@ APB_bus #(
 initial
 begin
 
-  $monitor("PRDATA=%d , pwrite = %d , pwdata = %d , Data_out = %d , penable = %d , pready = %d , ",PRDATA,PWRITE,PWDATA,DATA_out,PENABLE,PREADY);
+  $monitor(" pwrite = %d , strob = %d ,pwdata = %d , Data_out = %d , penable = %d , pready = %d , ",PWRITE, STROB_in , PWDATA ,DATA_out,PENABLE,PREADY);
 
 
 end

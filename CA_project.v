@@ -1,18 +1,18 @@
 
-module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, parameter STROBE_WIDTH = 'd4, parameter SLAVES_NUM = 2)
+module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, parameter STROBE_WIDTH = 4, parameter SLAVES_NUM = 2)
   (
   
   //--------------- INPUTS -----------------------
   
+  input                         PCLK       ,
+  input                         PRESETn    ,
   input wire [ADDR_WIDTH-1:0]   ADDR_in    ,
   input wire [DATA_WIDTH-1:0]   DATA_in    ,
   input wire [2:0]              PROT_in    ,
   input wire [SLAVES_NUM-1:0]   SEL_in     ,
   input wire [STROBE_WIDTH-1:0] STROB_in   ,
   input wire                    Transfer   ,     
-  input wire                    WRITE_in   ,
-  input                         PCLK       ,
-  input                         PRESETn    , 
+  input wire                    WRITE_in   , 
   input wire [DATA_WIDTH-1:0]   PRDATA     ,
   input wire                    PREADY     ,
   input wire                    PSLVERR    ,
@@ -105,7 +105,6 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
       PSEL <= 0;
     end
     
-    
     else begin
     PSEL <= SEL_in;
     end
@@ -113,8 +112,6 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
   end
   
   
-
-    
   always @(posedge PCLK or negedge PRESETn) 
   begin
     if(!PRESETn)begin
@@ -130,22 +127,39 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
       
     end
     
-    else if(nextstate == SETUP)begin
+  else if(nextstate == SETUP)begin
      
       PENABLE  <= 1'b0;
       PADDR    <= ADDR_in;
       PWRITE    = WRITE_in;
       PPROT    <= PROT_in;
       
-      if(PWRITE)begin
-        PWDATA  <= DATA_in;
-        PSTRB   <= STROB_in;
-      end
-      
-      else
+    if(PWRITE)begin
+        
+        PSTRB  = STROB_in;
+          
+        if(PSTRB == 4'b0010)begin
+         PWDATA <= ('h00000F00 & DATA_in);
+        end
+       
+        else if ( PSTRB == 4'b0100)
+         begin
+          PWDATA <= (32'b0000111100000000 & DATA_in);
+         end
+        
+        else if ( PSTRB == 4'b1000 ) begin
+          PWDATA <= (32'b1111000000000000 & DATA_in);
+         end
+        
+         else 
+          PWDATA <= DATA_in;
+       
+     end 
+     
+     else
         PSTRB <= 'b0;
   end
-    
+
   else if(nextstate == ACCESS)begin
       
       PENABLE   <= 1'b1     ;
