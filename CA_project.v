@@ -138,22 +138,29 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
         
         PSTRB  = STROB_in;
           
-        if(PSTRB == 4'b0010)begin
-         PWDATA <= ('h00000F00 & DATA_in);
+          
+        if(PSTRB == 'd1)begin
+         PWDATA <= ('h000000FF & DATA_in);
+        end  
+          
+        else if(PSTRB == 'd2)begin
+         PWDATA <= ('h0000FF00 & DATA_in);
         end
        
-        else if ( PSTRB == 4'b0100)
+        else if ( PSTRB == 'd4)
          begin
-          PWDATA <= (32'b0000111100000000 & DATA_in);
+          PWDATA <= ('h00FF0000 & DATA_in);
          end
         
-        else if ( PSTRB == 4'b1000 ) begin
-          PWDATA <= (32'b1111000000000000 & DATA_in);
+        else if ( PSTRB == 'd8 ) 
+        begin
+          PWDATA <= ('hFF000000 & DATA_in);
          end
         
-         else 
+         else begin 
           PWDATA <= DATA_in;
-       
+          end
+     
      end 
      
      else

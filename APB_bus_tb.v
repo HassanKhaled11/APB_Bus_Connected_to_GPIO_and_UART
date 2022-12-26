@@ -5,7 +5,7 @@
 module tb_APB_bus();
   
 // APB_bus Parameters
-parameter PERIOD        = 50 ;
+parameter PERIOD        = 100 ;
 parameter DATA_WIDTH    = 'd32;
 parameter ADDR_WIDTH    = 'd32;
 parameter SLAVES_NUM    = 'd2 ;
@@ -14,10 +14,10 @@ parameter STROBE_WIDTH  = 'd4 ;
 
 // APB_bus Inputs
 reg   [ADDR_WIDTH-1:0]  ADDR_in            = 0 ;
-reg   [DATA_WIDTH-1:0]  DATA_in            = 'd1000 ;
+reg   [DATA_WIDTH-1:0]  DATA_in            = 'hFF000F00 ;
 reg   [2:0]  PROT_in                       = 0 ;
 reg   [SLAVES_NUM-1:0]  SEL_in             = 2'b10 ;
-reg   [STROBE_WIDTH-1:0]  STROB_in         = 'd2 ;
+reg   [STROBE_WIDTH-1:0]  STROB_in         = 'd0;
 reg   Transfer                             = 1 ;
 reg   WRITE_in                             = 1 ;
 reg   PCLK                                 = 0 ;
