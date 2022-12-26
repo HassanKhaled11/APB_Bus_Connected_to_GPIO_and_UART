@@ -3,7 +3,7 @@ module piso(input wire tx_clk,input wire rst_n,input wire load,input wire[7:0]da
   reg[7:0] data_reg;
   reg[3:0] count;
   
-  always @(posedge tx_clk)  begin
+  always @(posedge tx_clk or negedge rst_n)  begin
     if(!rst_n) begin
       data_reg <= 8'h00; //Reset data register
       count    <= 4'b0000; 
@@ -16,7 +16,7 @@ module piso(input wire tx_clk,input wire rst_n,input wire load,input wire[7:0]da
     // if load is 0 then shift the data register by 1 bit right and out the right significant inside register to the serial out
       else begin
         {data_reg,data_out} <= {1'b0,data_reg};
-        count = count + 1'b1;
+        count <= count + 1'b1;
       end
     end
   end
@@ -76,7 +76,7 @@ module fsm_tx(
   reg [2:0] state;
   reg [2:0] next_state;
     
-    always @(posedge tx_clk) begin
+    always @(posedge tx_clk or negedge rst_n) begin
       if(~rst_n) begin
         state <= IDLE;
       end

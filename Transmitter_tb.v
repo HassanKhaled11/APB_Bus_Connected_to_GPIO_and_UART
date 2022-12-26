@@ -73,7 +73,40 @@ module tb_mux_tx();
   
 endmodule
 
-module transmitter_tb();
+module tb_transmitter_WithBauudClock();
+  reg clk;
+  wire        tx_clk;         // baud rate
+  reg        rst_n;         //reset
+  reg        tx_start;     // start of transaction
+  reg        tx_enable;
+  reg [7:0]  tx_data_in;   // data to transmit
+  wire       tx_data_out;  // out of mux
+  wire       done;         // end on transaction
+  wire       busy;          // transaction is in process
+    
+  localparam  CLOCK_RATE = 10000000;              //Need configuration
+  localparam  BAUD_RATE = 9600;                   //Need configuration
+  
+  localparam  PERIOD = (1000000000/CLOCK_RATE);
+  localparam  _1SEC = 1000000000;
+  
+  baud_clock_generator#(.CLOCK_RATE(CLOCK_RATE),.BAUD_RATE(BAUD_RATE)) b1(.clk(clk),.rst_n(rst_n),.tx_clk(tx_clk));
+  
+  always #(PERIOD/2) clk = ~clk;
+  
+  initial begin
+    clk = 0;rst_n = 0;tx_start <= 0;tx_enable <= 0;tx_data_in <= 8'h00;
+    #(3*PERIOD) rst_n = 1;
+    #(PERIOD) tx_enable <= 1; tx_start  <= 1;tx_data_in = 8'b01111010;
+  end
+   
+   
+  transmitter t1(.tx_clk(tx_clk),.rst_n(rst_n),.tx_start(tx_start),.tx_enable(tx_enable),.tx_data_in(tx_data_in),
+                  .tx_data_out(tx_data_out),.done(done),.busy(busy));
+endmodule
+
+
+module tb_transmitter_withSystemClock();
     reg        tx_clk;         // baud rate
     reg        rst_n;         //reset
     reg        tx_start;     // start of transaction
@@ -94,5 +127,4 @@ module transmitter_tb();
     #2  tx_enable <= 1; tx_start  <= 1;
     #2  tx_data_in = 8'b10101010;
   end
-   
-endmodule;
+endmodule

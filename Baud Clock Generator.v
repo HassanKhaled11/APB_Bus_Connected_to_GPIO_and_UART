@@ -1,6 +1,6 @@
 module baud_clock_generator #
 (
- parameter CLOCK_RATE = 16000000,
+ parameter CLOCK_RATE = 10000000,
  parameter BAUD_RATE = 9600
 )
 (
