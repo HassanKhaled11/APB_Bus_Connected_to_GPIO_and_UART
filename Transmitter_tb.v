@@ -1,4 +1,4 @@
-`timescale 1us/1us
+`timescale 1ns/1ns
 
 //Test Bensch For piso (Parallel In Serial Out Shift Register)
 module tb_piso();
@@ -72,3 +72,27 @@ module tb_mux_tx();
   end
   
 endmodule
+
+module transmitter_tb();
+    reg        tx_clk;         // baud rate
+    reg        rst_n;         //reset
+    reg        tx_start;     // start of transaction
+    reg        tx_enable;
+    reg [7:0]  tx_data_in;   // data to transmit
+    wire       tx_data_out;  // out of mux
+    wire       done;         // end on transaction
+    wire       busy;          // transaction is in process
+   transmitter t1(.tx_clk(tx_clk),.rst_n(rst_n),.tx_start(tx_start),.tx_enable(tx_enable),.tx_data_in(tx_data_in),
+                  .tx_data_out(tx_data_out),.done(done),.busy(busy));
+   
+   always #1 tx_clk = ~tx_clk;
+  
+  
+  initial begin
+    tx_clk <= 0;rst_n <= 0;tx_start <= 0;tx_enable <= 0;tx_data_in <= 8'h00;
+    #3  rst_n <= 1;
+    #2  tx_enable <= 1; tx_start  <= 1;
+    #2  tx_data_in = 8'b10101010;
+  end
+   
+endmodule;

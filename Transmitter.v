@@ -1,12 +1,12 @@
 //Module Piso implementation 
-module piso(input wire clk,input wire rst_n,input wire load,input wire[7:0]data_in,output reg data_out,output wire data_sent);
+module piso(input wire tx_clk,input wire rst_n,input wire load,input wire[7:0]data_in,output reg data_out,output wire data_sent);
   reg[7:0] data_reg;
-  reg[2:0] count;
+  reg[3:0] count;
   
-  always @(posedge clk or negedge rst_n)  begin
+  always @(posedge tx_clk)  begin
     if(!rst_n) begin
       data_reg <= 8'h00; //Reset data register
-      count    <= 3'b000; 
+      count    <= 4'b0000; 
  
    end 
     else begin
@@ -21,7 +21,7 @@ module piso(input wire clk,input wire rst_n,input wire load,input wire[7:0]data_
     end
   end
   
-  assign data_sent = (count == 3'b100)?1'b1:1'b0; 
+  assign data_sent = (count == 4'b1000)?1'b1:1'b0; 
  
   
 endmodule
@@ -38,17 +38,15 @@ endmodule
 
 //MUX module which generate bit (start/data/parity/stop) according to section number
 module mux_tx(input wire data_bit,input wire parity_bit,input wire[2:0] select,output reg mux_out);
-  reg start_bit = 1'b0;
-  reg stop_bit  = 1'b1;
 
   always@(select or data_bit) begin
     case(select)
-      3'b001:   mux_out = start_bit;
+      3'b000:   mux_out = 1'b1;
+      3'b001:   mux_out = 1'b0;
       3'b010:   mux_out = data_bit;
       3'b011:   mux_out = parity_bit;
-      3'b011:   mux_out = stop_bit;
-      3'b100:   mux_out = stop_bit;
-      default: mux_out = stop_bit;
+      3'b100:   mux_out = 1'b1;
+      default:  mux_out =  1'b1;
     endcase
   end
 endmodule
@@ -60,7 +58,7 @@ module fsm_tx(
     input wire tx_start,
     input wire tx_enable,
     input wire data_sent,
-    output reg select,
+    output reg [2:0] select,
     output reg load,
     output reg parity_enable,
     output reg done,
@@ -70,7 +68,8 @@ module fsm_tx(
                   START_BIT   = 3'b001,
                   DATA_BIT    = 3'b010,
                   PARITY_BIT  = 3'b011,
-                  STOP_BIT    = 3'b100;
+                  STOP_BIT    = 3'b100,
+                  DONE        = 3'b101;
  
   
  
@@ -78,20 +77,23 @@ module fsm_tx(
   reg [2:0] next_state;
     
     always @(posedge tx_clk) begin
-      if(~rst_n)
-        state = IDLE;
-      else
-        state = next_state;
+      if(~rst_n) begin
+        state <= IDLE;
+      end
+      else begin
+        state <= next_state;
+      end
     end
     
-    always @(state) begin
+    always @(state or tx_start or tx_enable or data_sent) begin
       case(state)
             IDLE       : begin
-                if (tx_start & tx_enable)
-                    next_state   <= START_BIT;
+                if (tx_start  & tx_enable) begin
+                    next_state <= START_BIT;
+                end 
             end
             START_BIT    : begin
-                state   <= DATA_BIT;
+                next_state   <= DATA_BIT;
             end
             DATA_BIT     : begin // Wait 8 clock cycles for data bits to be sent
                 if (data_sent)
@@ -103,6 +105,9 @@ module fsm_tx(
                 next_state   <= STOP_BIT;
             end
             STOP_BIT     : begin // Send out Stop bit (high)
+                next_state   <= DONE;
+            end
+            DONE         : begin // Send out Done bit (high)
                 next_state   <= IDLE;
             end
             default      : begin
@@ -111,45 +116,56 @@ module fsm_tx(
         endcase
     end
     
-    always @(state) begin
+    always @(state or tx_start or tx_enable ) begin
         case (state)
             IDLE            : begin
-                select        <= 2'bxx;
+                select        <= 3'b000;
                 load          <= 1'b1;
                 parity_enable <= 1'b0;
                 done          <= 1'b0;
                 busy          <= 1'b0;
             end
             START_BIT  : begin
-                select        <= 2'b00;
-                load          <= 1'b1;
+                select        <= 3'b001;
+                load          <= 1'b0;
                 parity_enable <= 1'b1;
                 done          <= 1'b0;
                 busy          <= 1'b1;
             end
             DATA_BIT  : begin // Wait 8 clock cycles for data bits to be sent
-                select        <= 2'b01;
+                select        <= 3'b010;
                 load          <= 1'b0;
                 parity_enable <= 1'b1;
                 done          <= 1'b0;
                 busy          <= 1'b1;
             end
             PARITY_BIT   : begin // Send out parity bit (even parity)
-                select        <= 2'b10;
+                select        <= 3'b011;
                 load          <= 1'b0;
                 parity_enable <= 1'b1;
                 done          <= 1'b0;
                 busy          <= 1'b1;
             end
             STOP_BIT   : begin // Send out Stop bit (high)
-                select        <= 2'b11;
+                select        <= 3'b100;
+                load          <= 1'b1;
+                parity_enable <= 1'b0;
+                done          <= 1'b0;
+                busy          <= 1'b1;
+            end
+            DONE   : begin // Send out Done bit (high)
+                select        <= 3'b000;
                 load          <= 1'b1;
                 parity_enable <= 1'b0;
                 done          <= 1'b1;
-                busy          <= 1'b1;
+                busy          <= 1'b0;
             end
             default     : begin
-                state   <= IDLE;
+                select        <= 3'b000;
+                load          <= 1'b1;
+                parity_enable <= 1'b0;
+                done          <= 1'b0;
+                busy          <= 1'b0;
             end
         endcase
     end
@@ -161,14 +177,14 @@ module transmitter(
     input  wire       tx_start,     // start of transaction
     input  wire       tx_enable,
     input  wire [7:0] tx_data_in,   // data to transmit
-    output reg        tx_data_out,  // out of mux
-    output reg        done,         // end on transaction
-    output reg        busy          // transaction is in process
+    output wire       tx_data_out,  // out of mux
+    output wire        done,         // end on transaction
+    output wire        busy          // transaction is in process
 );
    wire data_sent,load,parity_enable,parity_bit;
    wire data_bit; //Data bit without start or stop bit to be input for mux
    wire[2:0] select;
-   
+     
   fsm_tx t1(
   .tx_clk(tx_clk),
   .rst_n(rst_n),
@@ -181,7 +197,7 @@ module transmitter(
   .done(done),
   .busy(busy)
  );
- piso t2(.clk(clk),.reset(reset),.load(load),.data_in(tx_data_in),.data_out(data_bit),.data_sent(data_sent));
+ piso t2(.tx_clk(tx_clk),.rst_n(rst_n),.load(load),.data_in(tx_data_in),.data_out(data_bit),.data_sent(data_sent));
  parity_generator t3(.parity_enable(parity_enable),.data(tx_data_in),.parity(parity_bit));
  mux_tx t4(.data_bit(data_bit),.parity_bit(parity_bit),.select(select),.mux_out(tx_data_out));
     
