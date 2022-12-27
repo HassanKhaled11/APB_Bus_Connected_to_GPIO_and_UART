@@ -22,12 +22,13 @@ module Uart#(
     output wire pready,
     output reg txd
 );
-wire txStart, rxStart, rxDone, txDone, tx_data_out, busy;
+wire txStart, rxStart, rxDone, txDone, tx_data_out, busy, err, tx_en, rx_en;
 wire [7:0] txData, rxData;
 
 
 // remaining busy, err, parity_err, parity_en
-Receiver rxInst (.clk(clk), .rxStart(pen), .done(rxDone), .out(rxData), .in(rxd)); 
+Receiver rxInst (.rst_n(rst_n), .clk(clk), .rxStart(rxStart), .done(rxDone), .out(rxData), .in(rxd),
+                 .err(err), .busy(busy), .rx_en(rx_en)); 
 
 //remaining busy
 /*transmitter txInst (.tx_clk(clk), .rst_n(rst_n), .tx_start(txStart), .tx_enable(pen), .tx_data_in(txData),
@@ -35,7 +36,8 @@ Receiver rxInst (.clk(clk), .rxStart(pen), .done(rxDone), .out(rxData), .in(rxd)
 
 APB_interface apb_interface(.pAdd(pAdd), .pwData(pwData), .psel(psel), .pen(pen), .pwr(pwr), .rst_n(rst_n),
                             .clk(clk), .prdata(prdata), .pready(pready), .txStart(txStart), .txData(txData),
-                            .rxData(rxData), .txDone(txDone), .rxDone(rxDone), .rxStart(rxStart));
+                            .rxData(rxData), .txDone(txDone), .rxDone(rxDone), .rxStart(rxStart),
+                            .err_in(err), .busy(busy), .tx_en(tx_en), .rx_en(rx_en));
 endmodule
 
 
@@ -46,10 +48,10 @@ endmodule
 
 module tb_Uart();
 
-reg clk, rst_n, pwr, pen, pready, rxd;
+reg clk, rst_n, pwr, pen, rxd;
 reg [1:0] psel;
 reg [31:0] pwData, pAdd;
-wire prdata, txd;
+wire prdata, txd, pready;
 
 //Test transmitter
 Uart uart(.clk(clk), .pwData(pwData), .pAdd(pAdd), .rst_n(rst_n), .pwr(pwr), .psel(psel), .pen(pen),
@@ -59,14 +61,12 @@ always #1 clk = ~clk;
 
 initial begin
   clk <= 0; pwData <= 0; pAdd <= 0; rst_n <= 0; pwr <= 0; psel <= 2'b00; pen <= 0; 
-  #3 pAdd <= 32'd15; pwr <= 1; psel <= 2'b10; rst_n = 1; pen <= 1;
-  #2 rxd <= 0; 
-  #150 rxd = 1;
+  #3 rst_n <= 1; pAdd <= 32'd15; pwr <= 0; psel <= 2'b10; 
+  #2 rxd = 0;
+  #2 pen = 1;
+  #320 rxd = 1;
 end
 endmodule
-
-
-
 
 
 
@@ -83,11 +83,15 @@ module APB_interface
   input wire [7:0] rxData,
   input wire rxDone,           //Indication that receiver received 8 bits
   input wire txDone,           //Indication that transmitter sent 8 bits
+  input wire err_in,
+  input wire busy,
   output reg rxStart,    
   output reg txStart,     
   output reg[7:0] txData,   
   output reg[31:0] prdata,
-  output reg pready
+  output reg pready,
+  output reg rx_en,
+  output reg tx_en
 );
 
 reg [31:0]fifo;    
@@ -106,32 +110,36 @@ localparam [2:0] IDLE            =       3'b000,
 
 
 
-
-
 always @(posedge clk or ~rst_n) begin
   if(~rst_n)
-    state = IDLE;
+    state <= IDLE;
   else
-    state = next_state;
+    state <= next_state;
 end
 
+
+/*For error detection*/
+always@(err_in or rxDone or txDone)begin 
+    if(err_in || rxDone || txDone)
+      next_state <= IDLE;
+end
 
 always@(state)begin
   case(state)
     IDLE: begin
       if(psel == 2'b10)      // The Processor wants UART 
-        next_state = READY;
+        next_state <= READY;
     end
 
     READY: begin    
       if(pwr)       //Write operation -> enable transmitter module
-        next_state = CHECK_FIFO;
+        next_state <= CHECK_FIFO;
       else if(~pwr) //Read operation -> enable Receiver module
-        next_state = RECEIVE;
+        next_state <= RECEIVE;
     end
 
     FIFO_WRITE: 
-      next_state = CHECK_FIFO;
+      next_state <= CHECK_FIFO;
 
     CHECK_FIFO: begin
       if(&count4) begin   //if count4 == 2'b11
@@ -139,34 +147,30 @@ always@(state)begin
         count4 <= 0;
       end
       else 
-      next_state = TRANSFER;
-    end
-      
+      next_state <= TRANSFER;
+    end   
 
     TRANSFER: begin
       if(txDone)    //Transmitter sent the data 8 bits 
-        next_state = CHECK_FIFO;
+        next_state <= CHECK_FIFO;
     end
-
 
     RECEIVE: begin
       if(rxDone)     //Receiver received the data 8 bits
-        next_state = STORE;
+        next_state <= STORE;
     end
-
 
     STORE: begin
       if(&count4)
-        next_state = BUS_READ;
+        next_state <= BUS_READ;
       else
-        next_state = RECEIVE;
+        next_state <= RECEIVE;
     end
 
     BUS_READ: begin
       if(pready)
-        next_state = IDLE;
+        next_state <= IDLE;
     end
-
   endcase
 end
 
@@ -174,12 +178,15 @@ end
 always@(state) begin
   case(state)
     IDLE: begin
+      next_state <= READY;
       txStart <= 0;
       rxStart <= 0;
       txData <= 0;
       prdata <= 0;
       fifo <= 0;
       pready <= 0;
+      rx_en <= 0;
+      tx_en <= 0;
     end
 
 
@@ -201,6 +208,7 @@ always@(state) begin
 
     CHECK_FIFO: begin
       txStart <= 0;
+      tx_en <= 1;
       txData <= fifo[7:0];
       fifo <= fifo >> 8;
       count4 <= count4 + 2'b01;
@@ -215,6 +223,7 @@ always@(state) begin
     RECEIVE: begin
       pready <= 0;
       rxStart <= 1;
+      rx_en <= 1;
     end
 
 
@@ -236,8 +245,6 @@ endmodule
 
 
 
-
-
 /*
  * 8-bit UART Receiver.
  * Able to receive 8 bits of serial data, one start bit, one stop bit.
@@ -249,7 +256,7 @@ endmodule
 module Receiver (
     input  wire       clk,            // baud rate
     input  wire       rxStart,        //Start receiving 
-    input  wire       en,             // Enable the receiver module
+    input  wire       rx_en,             // Enable the receiver module
     input  wire       in,             // rx
     input  wire       rst_n,          //reset the module
     output reg  [7:0] out,            // received data
@@ -267,13 +274,12 @@ module Receiver (
                      STOP_BIT      =      3'b100;
     
 
-    reg [2:0] state;
+    reg [2:0] state = RESET;
     reg [2:0] bitIdx = 3'b0; // for 8-bit data
     reg [1:0] inputSw = 2'b0; // shift reg for input signal state
     reg [3:0] clockCount = 4'b0; // count clocks for 16x oversample
     reg [7:0] receivedData = 8'b0; // temporary storage for input data
     reg errorCheck_en = 0;
-    wire validError = 0;
 
 
     /*Inistance from Parity checker module*/
@@ -282,11 +288,11 @@ module Receiver (
 
 
     always @(posedge clk or ~rst_n) begin
-      if(en) begin
+      if(rx_en) begin
         inputSw = { inputSw[0], in };
-        if (!rxStart) begin
-            state <= RESET;
-        end
+         if (!rxStart) begin
+             state <= RESET;
+         end
 
         case (state)
             RESET: begin
@@ -375,7 +381,7 @@ module Receiver (
                   clockCount <= clockCount + 1;
                   // Check bit to make sure it's still high
                   if (!(|inputSw)) begin
-                    //The data rates are not equal so release an error 
+                    //Stop bit error
                     errorCheck_en <= 1;                    
                     state <= RESET;     
                   end
@@ -391,17 +397,17 @@ endmodule
 
 
 module tb_receiver();
-  reg clk, rxStart, in, rst_n, en;
+  reg clk, rxStart, in, rst_n, rx_en;
   wire done, busy, err;
   wire [7:0]out;
   
   Receiver receiver(.clk(clk), .rxStart(rxStart), .in(in), .out(out), 
-                    .busy(busy), .err(err), .done(done), .en(en), .rst_n(rst_n));
+                    .busy(busy), .err(err), .done(done), .rx_en(rx_en), .rst_n(rst_n));
   
   always #1 clk = ~clk;
   
   initial begin
-    clk <= 0; rxStart <= 1; in <= 0; rst_n <= 1; en <= 1;
+    clk <= 0; rxStart <= 1; in <= 0; rst_n <= 1; rx_en <= 1;
     #3 in = 0; 
     #2 rxStart = 1;
     #32 in = 1;
@@ -413,7 +419,7 @@ module tb_receiver();
     #32 in = 1;
     #32 in = 1;
     #32 in = 1;   // Parity bit (no parity error)
-    #32 in = 0;   //stop bit                   
+    #32 in = 1;   //stop bit Done                 
   end
 endmodule
 
@@ -472,4 +478,5 @@ module tb_parity_check();
     #2  errorCheck_en = 1; rx <= 0; rx_data_in = 8'b11000000;    //There is no parity error
   end
 endmodule
+
 
