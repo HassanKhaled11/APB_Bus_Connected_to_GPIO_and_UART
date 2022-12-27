@@ -272,16 +272,13 @@ module Receiver (
     reg [1:0] inputSw = 2'b0; // shift reg for input signal state
     reg [3:0] clockCount = 4'b0; // count clocks for 16x oversample
     reg [7:0] receivedData = 8'b0; // temporary storage for input data
-    reg parityCheck_en = 0;
-    reg dataRateCheck_en = 0; 
+    reg errorCheck_en = 0;
+    wire validError = 0;
 
 
     /*Inistance from Parity checker module*/
-    PARITY_CHECK parity_check(.parityCheck_en(parityCheck_en), .rx(in), .rx_data_in(receivedData),
-                              .parity_err(err));
-
-    /*Inistance from Data rate checker module*/
-    DATA_RATE_CHECK data_rate_check(.data_rate_err(err), .dataRateCheck_en(dataRateCheck_en));                              
+    ERROR_CHECK error_check(.errorCheck_en(errorCheck_en), .rx(in), .rx_data_in(receivedData),
+                              .err(err), .state(state));                             
 
 
     always @(posedge clk or ~rst_n) begin
@@ -299,8 +296,7 @@ module Receiver (
                 bitIdx <= 0;
                 clockCount <= 0;
                 receivedData <= 0;
-                parityCheck_en <= 0;
-                dataRateCheck_en <= 0;
+                
                 if (rxStart) begin
                     state <= IDLE;
                 end
@@ -314,13 +310,16 @@ module Receiver (
                     bitIdx <= 3'b0;
                     clockCount <= 4'b0;
                     receivedData <= 8'b0;
-                    busy <= 1'b1;
+                    busy <= 1'b1;                    
+
                 end else if (!(&inputSw) || |clockCount) begin
                     // Check bit to make sure it's still low
                     if (&inputSw) begin
                         state <= RESET;
-                    end
+                    end begin
+                    errorCheck_en <= 0;
                     clockCount <= clockCount + 4'b1;
+                    end
                 end
             end
 
@@ -343,20 +342,21 @@ module Receiver (
   
 
             PARITY: begin
-              if(&clockCount) begin
-                clockCount <= 0;
-                parityCheck_en <= 1;
-                if(~err) begin                  
-                  parityCheck_en <= 0;
+              if(&clockCount) begin                
+                clockCount <= 0;              
+                if(~err) begin   
+                  errorCheck_en <= 0;               
                   state <= STOP_BIT;
                 end
                 else  
-                /*There is parity err*/
+                /*There is parity err*/                                   
                   state <= RESET;    
               end
-            else
+            else begin
               clockCount <= clockCount + 4'b1;
+              if(clockCount >= 4'b1101) errorCheck_en <= 1;
             end
+          end
             
 
             /*
@@ -369,16 +369,16 @@ module Receiver (
                     done <= 1'b1;
                     busy <= 1'b0;
                     out <= receivedData;
-
                     clockCount <= 4'b0;
-                end else begin
-                    clockCount <= clockCount + 1;
-                    // Check bit to make sure it's still high
-                    if (!(|inputSw)) begin
-                      //The data rates are not equal so release an error from DATA_RATE_CHECK module
-                      dataRateCheck_en <= 1;                     
-                      state <= RESET;     
-                    end
+                end
+                else begin                               
+                  clockCount <= clockCount + 1;
+                  // Check bit to make sure it's still high
+                  if (!(|inputSw)) begin
+                    //The data rates are not equal so release an error 
+                    errorCheck_en <= 1;                    
+                    state <= RESET;     
+                  end
                 end
             end
             default: state <= IDLE;
@@ -392,11 +392,11 @@ endmodule
 
 module tb_receiver();
   reg clk, rxStart, in, rst_n, en;
-  wire done, busy, parity_err;
+  wire done, busy, err;
   wire [7:0]out;
   
   Receiver receiver(.clk(clk), .rxStart(rxStart), .in(in), .out(out), 
-                    .busy(busy), .err(parity_err), .done(done), .en(en), .rst_n(rst_n));
+                    .busy(busy), .err(err), .done(done), .en(en), .rst_n(rst_n));
   
   always #1 clk = ~clk;
   
@@ -421,52 +421,55 @@ endmodule
 
 
 
-module DATA_RATE_CHECK(data_rate_err, dataRateCheck_en);
-  input wire dataRateCheck_en;
-  output reg data_rate_err;
-  always@(dataRateCheck_en) begin
-    if(dataRateCheck_en) data_rate_err <= 1;
-    else data_rate_err <= 0;
-  end
 
-endmodule
-
-
-
-
-
-module PARITY_CHECK(parity_err, parityCheck_en, rx, rx_data_in);
+module ERROR_CHECK(err, errorCheck_en, rx, rx_data_in, state);
   input wire[7:0] rx_data_in;
-  input wire rx, parityCheck_en;
-  output reg parity_err;
+  input wire rx, errorCheck_en;
+  input wire[2:0] state;
+  output reg err;
+
   
-  always@(parityCheck_en) begin    //if any of the previous signals changed
-    if(parityCheck_en) begin
-      if(rx == (^rx_data_in)) begin   //Even Parity check
-        parity_err <= 0;
+  // states of state machine
+  localparam [2:0]  RESET         =      3'b000,
+                    IDLE          =      3'b001,
+                    DATA_BITS     =      3'b010,
+                    PARITY        =      3'b011,
+                    STOP_BIT      =      3'b100; 
+
+  always@(errorCheck_en) begin    
+    if(errorCheck_en) begin
+      if(state == STOP_BIT || state == RESET) begin
+        err <= 1;
       end
-      else begin
-        parity_err <= 1;
+      else if (state == PARITY)begin
+        if(rx == (^rx_data_in)) begin   //Even Parity check
+          err <= 0;
+        end
+        else begin
+          err <= 1;
+        end
       end
+      else
+        err <= err;
     end
     else
-      parity_err <= 1'bx;       
+      err <= 0;
   end
 endmodule
 
 
 
 module tb_parity_check();
-  reg rx, parityCheck_en;
+  reg rx, errorCheck_en;
   reg[7:0] rx_data_in;
-  PARITY_CHECK parity_check(.parityCheck_en(parityCheck_en), .rx(rx), .rx_data_in(rx_data_in));
+  PARITY_CHECK parity_check(.errorCheck_en(errorCheck_en), .rx(rx), .rx_data_in(rx_data_in));
   initial begin
-    parityCheck_en = 0; rx = 0; rx_data_in = 8'b00000000;
-    #2  parityCheck_en <= 1; rx <= 1; rx_data_in = 8'b11110000;   //There is parity error    
-    #2  parityCheck_en = 0;
-    #2  parityCheck_en = 1; rx_data_in = 8'b11000000;             //There is parity error
-    #2  parityCheck_en = 0;
-    #2  parityCheck_en = 1; rx <= 0; rx_data_in = 8'b11000000;    //There is no parity error
+    errorCheck_en = 0; rx = 0; rx_data_in = 8'b00000000;
+    #2  errorCheck_en <= 1; rx <= 1; rx_data_in = 8'b11110000;   //There is parity error    
+    #2  errorCheck_en = 0;
+    #2  errorCheck_en = 1; rx_data_in = 8'b11000000;             //There is parity error
+    #2  errorCheck_en = 0;
+    #2  errorCheck_en = 1; rx <= 0; rx_data_in = 8'b11000000;    //There is no parity error
   end
 endmodule
 
