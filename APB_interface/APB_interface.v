@@ -19,7 +19,8 @@ module APB_interface
   output reg[31:0] prdata,
   output reg pready,
   output reg rx_en,
-  output reg tx_en
+  output reg tx_en,
+  output reg err_out
 );
 
 reg [31:0]fifo;    
@@ -42,8 +43,10 @@ localparam [3:0] IDLE            =       4'b0000,
 always @(posedge clk or ~rst_n) begin
   if(~rst_n)
     state <= IDLE;
-  else
+  else begin
     state <= next_state;
+    err_out <= err_in;
+  end
 end
 
 
