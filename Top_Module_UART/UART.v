@@ -1,6 +1,6 @@
 module Uart#(
-    parameter CLOCK_RATE = 100000000, // board internal clock
-    parameter BAUD_RATE = 9600
+    parameter CLOCK_RATE, // board internal clock
+    parameter BAUD_RATE
 )(
     input wire clk,
     input wire[31:0] pAdd,      //Is not used
@@ -12,7 +12,8 @@ module Uart#(
     input wire rxd,
     output wire[31:0] prdata,
     output wire pready,
-    output reg txd
+    output wire txd,
+    output wire err_out
 );
 wire txStart, rxStart, rxDone, txDone, tx_data_out, busy, err, tx_en, rx_en;
 wire [7:0] txData, rxData;
@@ -29,5 +30,5 @@ transmitter txInst (.tx_clk(clk), .rst_n(rst_n), .tx_start(txStart), .tx_enable(
 APB_interface apb_interface(.pAdd(pAdd), .pwData(pwData), .psel(psel), .pen(pen), .pwr(pwr), .rst_n(rst_n),
                             .clk(clk), .prdata(prdata), .pready(pready), .txStart(txStart), .txData(txData),
                             .rxData(rxData), .txDone(txDone), .rxDone(rxDone), .rxStart(rxStart),
-                            .err_in(err), .busy(busy), .tx_en(tx_en), .rx_en(rx_en));
+                            .err_in(err), .busy(busy), .tx_en(tx_en), .rx_en(rx_en), .err_out(err_out));
 endmodule
