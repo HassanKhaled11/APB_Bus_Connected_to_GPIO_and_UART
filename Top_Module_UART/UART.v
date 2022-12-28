@@ -23,8 +23,8 @@ Receiver rxInst (.rst_n(rst_n), .clk(clk), .rxStart(rxStart), .done(rxDone), .ou
                  .err(err), .busy(busy), .rx_en(rx_en)); 
 
 //remaining busy
-/*transmitter txInst (.tx_clk(clk), .rst_n(rst_n), .tx_start(txStart), .tx_enable(pen), .tx_data_in(txData),
-                   .done(txDone), .busy(busy), .tx_data_out(tx_data_out));*/
+transmitter txInst (.tx_clk(clk), .rst_n(rst_n), .tx_start(txStart), .tx_enable(tx_en), .tx_data_in(txData),
+                   .done(txDone), .busy(busy), .tx_data_out(tx_data_out));
 
 APB_interface apb_interface(.pAdd(pAdd), .pwData(pwData), .psel(psel), .pen(pen), .pwr(pwr), .rst_n(rst_n),
                             .clk(clk), .prdata(prdata), .pready(pready), .txStart(txStart), .txData(txData),
