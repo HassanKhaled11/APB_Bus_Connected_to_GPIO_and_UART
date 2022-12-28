@@ -1,4 +1,3 @@
-
 module APB_interface
 (
   input wire [31:0] pAdd,    //Is not used
@@ -23,7 +22,8 @@ module APB_interface
   output reg err_out
 );
 
-reg [31:0]fifo;    
+reg [31:0]fifo_RX; 
+reg [31:0]fifo_TX;   
 reg [1:0]count4;       //Indicates that the TX module has read the four bytes from fifo
 reg[3:0] state;
 reg[3:0] next_state;
@@ -114,7 +114,8 @@ always@(state) begin
       rxStart <= 0;
       txData <= 0;
       prdata <= 0;
-      fifo <= 0;
+      fifo_RX <= 0;
+      fifo_TX <= 0;
       pready <= 0;
       rx_en <= 0;
       tx_en <= 0;
@@ -127,13 +128,14 @@ always@(state) begin
       rxStart <= 0;
       txData <= 0;
       prdata <= 0;
-      fifo <= 0;
+      fifo_TX <= 0;
+      fifo_RX <= 0;
       pready <= 1;
     end
 
     FIFO_WRITE: begin
       pready <= 0;
-      if(pen) fifo <= pwData;
+      if(pen) fifo_TX <= pwData;
 
     end
 
@@ -141,8 +143,8 @@ always@(state) begin
     CHECK_FIFO: begin
       txStart <= 0;
       tx_en <= 1;
-      txData <= fifo[7:0];
-      fifo <= fifo >> 8;
+      txData <= fifo_TX[7:0];
+      fifo_TX <= fifo_TX >> 8;
       count4 <= count4 + 2'b01;
     end
 
@@ -162,16 +164,16 @@ always@(state) begin
     STORE: begin
       rxStart <= 0;
       count4 <= (count4 + 2'b01);
-      fifo[7:0] <= rxData;
+      fifo_RX[7:0] <= rxData;
     end
 
     SHIFT: begin      
-      fifo <= (fifo << 8);
+      fifo_RX <= (fifo_RX << 8);
     end
 
 
     BUS_READ: begin
-      prdata <= fifo;
+      prdata <= fifo_RX;
       pready <= 1;        // Receiver tells the APB bus that the data you want is available now on the bus
     end
   endcase
