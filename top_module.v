@@ -13,7 +13,7 @@ module top_module #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, p
   input wire                    top_Transfer   ,     
   input wire                    top_WRITE_in   ,
   input wire                    top_UART_rx    ,
-  input wire                    Ready          ,
+  
  
   //-----------------OUTPUTS------------------------
   
@@ -30,13 +30,11 @@ module top_module #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, p
   wire                    slave_error;
   wire [ADDR_WIDTH-1:0]   address;
   wire [SLAVES_NUM-1:0]   select;
-  wire                    enable;
+ // wire                    enable; 
   wire                    write_flag;
   wire [DATA_WIDTH-1:0]   data_write;
   wire [STROBE_WIDTH-1:0] strobe;
   wire [2:0]              protection;
-  
-  
   
    
    
@@ -62,7 +60,6 @@ module top_module #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, p
    .DATA_out(top_DATA_out),
    .PADDR(address),
    .PSEL(select),
-   .PENABLE(enable),
    .PWRITE(write_flag),
    .PWDATA(data_write),
    .PSTRB(strobe),
@@ -77,20 +74,19 @@ module top_module #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, p
      BAUD_RATE 
      
     ) UART_1 (
-    
-    CLK,
-    address,      //Is not used
-    data_write,
-    RST,
-    write_flag,
-    select,       //If psel == 2'b10 then UART is choose
-    1,                  //delete it 
-    data_read,
-    ready,
-    top_UART_rx,
-    top_UART_tx);
-  
-  
+     
+    .clk(CLK),
+    .pAdd(address),      //Is not used
+    .pwData(data_write),
+    .rst_n(RST),
+    .pwr(write_flag),
+    .psel(select),       //If psel == 2'b10 then UART is choose
+    .pen(1),  
+    .rxd(top_UART_rx),                //delete it 
+    .prdata(data_read),
+    .pready(ready),
+    .txd(top_UART_tx) ,
+    .err_out(slave_error));
   
   
 endmodule
