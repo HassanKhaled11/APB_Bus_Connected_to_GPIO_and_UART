@@ -46,6 +46,8 @@ always @(posedge clk or ~rst_n) begin
   else begin
     state <= next_state;
     err_out <= err_in;
+    if(err_in)
+      pready <= 1;
   end
 end
 
