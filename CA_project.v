@@ -23,12 +23,16 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
   output reg [DATA_WIDTH-1:0]   DATA_out   ,
   output reg [ADDR_WIDTH-1:0]   PADDR      ,
   output reg [SLAVES_NUM-1:0]   PSEL       ,
-  output reg                    PENABLE    ,
+  //output reg                    PENABLE    ,
   output reg                    PWRITE     ,
   output reg [DATA_WIDTH-1:0]   PWDATA     ,
   output reg [STROBE_WIDTH-1:0] PSTRB      ,
   output reg [2:0]              PPROT      
+  
   );
+  
+  
+  reg                    PENABLE;
   
   
   reg [1:0]  state , nextstate ;
@@ -185,4 +189,3 @@ module APB_bus #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, para
      
  end
 endmodule                
-

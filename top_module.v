@@ -13,14 +13,14 @@ module top_module #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, p
   input wire                    top_Transfer   ,     
   input wire                    top_WRITE_in   ,
   input wire                    top_UART_rx    ,
-  input wire                    Ready          ,
+  
  
   //-----------------OUTPUTS------------------------
   
   output wire                    top_SLVERR_out ,
-  output wire [DATA_WIDTH-1:0]   top_DATA_out   ,      // wire so that the output can'y be controlled from outside source
-  output wire                    top_UART_tx    
-  
+  output wire [DATA_WIDTH-1:0]   top_DATA_out   ,      // wire so that the output can't be controlled from outside source
+  output wire                    top_UART_tx    ,  
+  inout  wire [7:0]              GPIO_PINS
   );
 
 
@@ -30,16 +30,13 @@ module top_module #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, p
   wire                    slave_error;
   wire [ADDR_WIDTH-1:0]   address;
   wire [SLAVES_NUM-1:0]   select;
-  wire                    enable;
+  // wire                    enable;
   wire                    write_flag;
   wire [DATA_WIDTH-1:0]   data_write;
   wire [STROBE_WIDTH-1:0] strobe;
   wire [2:0]              protection;
-  
-  
-  
-   
-   
+
+
   
   
   APB_bus #(.DATA_WIDTH(DATA_WIDTH),
@@ -62,35 +59,47 @@ module top_module #( parameter DATA_WIDTH = 'd32, parameter ADDR_WIDTH = 'd32, p
    .DATA_out(top_DATA_out),
    .PADDR(address),
    .PSEL(select),
-   .PENABLE(enable),
    .PWRITE(write_flag),
    .PWDATA(data_write),
    .PSTRB(strobe),
    .PPROT(protection)); // coninue.....
   
-  
-  
-  
-   Uart#(
+  /*
+  Uart#(
   
      CLOCK_RATE,
      BAUD_RATE 
      
     ) UART_1 (
+     
+    .clk(CLK),
+    .pAdd(address),      //Is not used
+    .pwData(data_write),
+    .rst_n(RST),
+    .pwr(write_flag),
+    .psel(select),       //If psel == 2'b10 then UART is choose
+    .pen(1),  
+    .rxd(top_UART_rx),                //delete it 
+    .prdata(data_read),
+    .pready(ready),
+    .txd(top_UART_tx) ,
+    .err_out(slave_error));
+  
+  */
     
-    CLK,
-    address,      //Is not used
-    data_write,
-    RST,
-    write_flag,
-    select,       //If psel == 2'b10 then UART is choose
-    1,                  //delete it 
-    data_read,
-    ready,
-    top_UART_rx,
-    top_UART_tx);
-  
-  
+  GPIO_APB GPIO_1(
+    .PCLK(CLK),
+    .PADDR(address),
+    .PWDATA(data_write),
+    .PRESETn(RST),
+    .PWRITE(write_flag),
+    .PSEL(select),
+    .PPROT(protection),
+    .PRDATA(data_read),
+    .PREADY(ready),
+    .PSLVERR(slave_error),
+    .PINS(GPIO_PINS)
+  );
   
   
 endmodule
