@@ -11,8 +11,10 @@ module piso(input wire tx_clk,input wire rst_n,input wire load,input wire[7:0]da
    end 
     else begin
       //if load signal is set then load the parallel data inside the register and reset serial data out
-      if(load)
+      if(load) begin
       {data_reg,data_out} <= {data_in,1'b0};
+      count    <= 4'b0000;
+      end
     // if load is 0 then shift the data register by 1 bit right and out the right significant inside register to the serial out
       else begin
         {data_reg,data_out} <= {1'b0,data_reg};
@@ -21,7 +23,7 @@ module piso(input wire tx_clk,input wire rst_n,input wire load,input wire[7:0]da
     end
   end
   
-  assign data_sent = (count == 4'b1000)?1'b1:1'b0; 
+  assign data_sent = (count == 4'b1000)?1'b1:1'b0;
  
   
 endmodule
@@ -68,8 +70,7 @@ module fsm_tx(
                   START_BIT   = 3'b001,
                   DATA_BIT    = 3'b010,
                   PARITY_BIT  = 3'b011,
-                  STOP_BIT    = 3'b100,
-                  DONE        = 3'b101;
+                  STOP_BIT    = 3'b100;
  
   
  
@@ -105,9 +106,6 @@ module fsm_tx(
                 next_state   <= STOP_BIT;
             end
             STOP_BIT     : begin // Send out Stop bit (high)
-                next_state   <= DONE;
-            end
-            DONE         : begin // Send out Done bit (high)
                 next_state   <= IDLE;
             end
             default      : begin
@@ -141,20 +139,13 @@ module fsm_tx(
             end
             PARITY_BIT   : begin // Send out parity bit (even parity)
                 select        <= 3'b011;
-                load          <= 1'b0;
+                load          <= 1'b1;
                 parity_enable <= 1'b1;
                 done          <= 1'b0;
                 busy          <= 1'b1;
             end
             STOP_BIT   : begin // Send out Stop bit (high)
                 select        <= 3'b100;
-                load          <= 1'b1;
-                parity_enable <= 1'b0;
-                done          <= 1'b0;
-                busy          <= 1'b1;
-            end
-            DONE   : begin // Send out Done bit (high)
-                select        <= 3'b000;
                 load          <= 1'b1;
                 parity_enable <= 1'b0;
                 done          <= 1'b1;
