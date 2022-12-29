@@ -50,7 +50,7 @@ always @(posedge clk or ~rst_n) begin
 end
 
 
-always@(state or posedge rxDone or posedge txDone) begin
+always@(state or posedge rxDone or posedge txDone or pready) begin
   case(state)
     IDLE: begin
       if(psel == 2'b10)      // The Processor wants UART 
@@ -59,7 +59,7 @@ always@(state or posedge rxDone or posedge txDone) begin
 
     READY: begin    
       if(pwr)       //Write operation -> enable transmitter module
-        next_state <= CHECK_FIFO;
+        next_state <= FIFO_WRITE;
       else if(~pwr) //Read operation -> enable Receiver module
         next_state <= RECEIVE;
     end
@@ -130,11 +130,11 @@ always@(state) begin
       prdata <= 0;
       fifo_TX <= 0;
       fifo_RX <= 0;
-      pready <= 1;
+      pready <= 0;
     end
 
     FIFO_WRITE: begin
-      pready <= 0;
+      pready <= 1;
       if(pen) fifo_TX <= pwData;
 
     end
