@@ -24,7 +24,7 @@ module APB_interface
 
 reg [31:0]fifo_RX; 
 reg [31:0]fifo_TX;   
-reg [1:0]count4;       //Indicates that the TX module has read the four bytes from fifo
+reg [2:0]count4;       //Indicates that the TX module has read the four bytes from fifo
 reg[3:0] state;
 reg[3:0] next_state;
 
@@ -70,7 +70,7 @@ always@(state or posedge rxDone or posedge txDone or pready) begin
       next_state <= CHECK_FIFO;
 
     CHECK_FIFO: begin
-      if(&count4) begin   //if count4 == 2'b11
+      if(count4 == 3'b100) begin   //if count4 == 2'b11
         next_state <= IDLE;
         count4 <= 0;
       end
@@ -90,7 +90,7 @@ always@(state or posedge rxDone or posedge txDone or pready) begin
     end
 
     STORE: begin  
-      if(&count4)  // the 4 bytes are stored in fifo
+      if(count4 == 3'b011)  // the 4 bytes are stored in fifo
         next_state <= BUS_READ;
       else
         next_state <= SHIFT;
@@ -143,7 +143,7 @@ always@(state) begin
 
 
     CHECK_FIFO: begin
-      txStart <= 0;
+      //txStart <= 0;
       tx_en <= 1;
       txData <= fifo_TX[7:0];
       fifo_TX <= fifo_TX >> 8;
