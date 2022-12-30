@@ -38,7 +38,14 @@ module GPIO_APB(
                            BUSWDATA);
                            
 
-  GPIO gpio(clk, rst_n, BUSW, BUSWDATA, BUSRDATA, REGSEL, PINS);
+  GPIO gpio(.clk(clk),
+            .rst_n(rst_n),
+            .BUSW(BUSW),
+            .BUSWDATA(BUSWDATA),
+            .BUSRDATA(BUSRDATA),
+            .REGSEL(REGSEL),
+            .pins(PINS)
+            );
   
   
   
