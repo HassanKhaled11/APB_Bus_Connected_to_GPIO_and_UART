@@ -14,7 +14,7 @@ module GPIO(clk, rst_n, BUSW, BUSWDATA, BUSRDATA, REGSEL, pins);
 	
 	
 	
-	// assign pins = PIN;
+	assign pins = PIN;
 	
 
 	initial begin
