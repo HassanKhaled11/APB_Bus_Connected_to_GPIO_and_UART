@@ -30,9 +30,6 @@ wire  [DATA_WIDTH-1:0]  top_DATA_out       ;
 wire  top_UART_tx                          ;
 wire  [7:0] PINS                           ;
 
-reg [7:0] pinn;
-assign PINS = pinn;
-
 initial
 begin
     forever #(PERIOD/2)  CLK=~CLK;
@@ -41,20 +38,19 @@ end
 initial
 begin
     #(PERIOD*2) RST  =  1;
-    
     /*TESTING GPIO*/
     
     // TEST CASE 1 => writing on DIR Reg (0000 1111) 0 for input and 1 for output
     top_ADDR_in = 2'b10;
     top_DATA_in = 15;
-    #(PERIOD*6); // wait 6 clock cycles to see the changes affecting PINS, Should be (XXXX 0000)
+    #(PERIOD*6); // wait 6 clock cycles to see the changes affecting PINS, Should be (0000 0000)
     
-    // TEST CASE 2 => writing on PORT Reg (1011 0111) 
+    // TEST CASE 2 => writing on PORT Reg (0111) 
     top_ADDR_in = 2'b11;
     top_DATA_in = 7;
-    #(PERIOD*6); // wait 6 clock cycles to see the changes affecting PINS, Should be (XXXX 0111)
-    
-    pinn[7:4] = 4'b1101; // Input DATA TO GPIO, PINS Should be(1101 0111)
+    #(PERIOD*6); // wait 6 clock cycles to see the changes affecting PINS, Should be (0000 0111)
+
+    force PINS [7:4] = 4'b1101;  // Input DATA TO GPIO, PINS Should be(1101 0111)
     #(PERIOD*2);
     
     // TEST CASE 3 => reading from DIR Reg (Pin Direction)
