@@ -164,7 +164,6 @@ always@(state) begin
 
 
     STORE: begin
-      rxStart <= 0;
       count4 <= (count4 + 2'b01);
       fifo_RX[7:0] <= rxData;
     end
@@ -175,6 +174,7 @@ always@(state) begin
 
 
     BUS_READ: begin
+      rxStart <= 0;
       prdata <= fifo_RX;
       pready <= 1;        // Receiver tells the APB bus that the data you want is available now on the bus
     end

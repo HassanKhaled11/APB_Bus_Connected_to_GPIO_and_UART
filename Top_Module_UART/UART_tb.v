@@ -50,7 +50,7 @@ initial begin
   #32 rxd = 0;    //Parity bit (no error)
   #32 rxd = 1;    //Stop bit (no error)
   /*------------------------------------------------*/
-  #36 rxd = 0;   //Start bit
+  #32 rxd = 0;   //Start bit
   #32 rxd = 0;   
   #32 rxd = 1;
   #32 rxd = 0;   
@@ -62,7 +62,7 @@ initial begin
   #32 rxd = 0;    //Parity bit (no error)
   #32 rxd = 1;    //Stop bit (no error)
 /*------------------------------------------------*/
-  #40 rxd = 0;   //Start bit
+  #32 rxd = 0;   //Start bit
   #32 rxd = 0;   
   #32 rxd = 1;
   #32 rxd = 0;   
@@ -74,7 +74,7 @@ initial begin
   #32 rxd = 0;    //Parity bit (no error)
   #32 rxd = 1;    //Stop bit (no error)
 /*------------------------------------------------*/
-  #44 rxd = 0;   //Start bit
+  #32 rxd = 0;   //Start bit
   #32 rxd = 0;   
   #32 rxd = 1;
   #32 rxd = 0;   
@@ -85,6 +85,5 @@ initial begin
   #32 rxd = 1;
   #32 rxd = 0;    //Parity bit (no error)
   #32 rxd = 1;    //Stop bit (no error)
-
 end
 endmodule
