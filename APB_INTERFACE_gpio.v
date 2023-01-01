@@ -25,7 +25,8 @@ module APB_INTERFACE(     input PCLK,
     assign REGSEL = PADDR[1:0];
     
     
-    always@(posedge PCLK, negedge PRESETn) begin
+    always@(posedge PCLK, negedge PRESETn) 
+    begin
       if(!PRESETn) state <= SELECT;
       else begin
         state <= next_state; 

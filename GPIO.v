@@ -31,16 +31,17 @@ module GPIO(clk, rst_n, BUSW, BUSWDATA, BUSRDATA, REGSEL, pins);
 			PORT <= 8'b00000000;
 			DIR <= 8'b00000000;
 			BUSRDATA <= 8'b00000000;
-			PIN <= 0;
+		//	PIN <= 0;
 		end
 
 		else if(BUSW) begin
 			case (REGSEL)
-				2'b10: DIR = BUSWDATA;
-				2'b11: PORT = BUSWDATA;
+				2'b10: DIR  <= BUSWDATA;
+				2'b11: PORT <= BUSWDATA;
 			endcase
 		end
 	end
+
 
 	always @(posedge clk) begin
       //DIO
