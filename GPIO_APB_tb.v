@@ -24,14 +24,18 @@ wire  PSLVERR                              ;
 wire  [7:0]  PINS                          ;
 
 
+
+
 initial
 begin
     forever #(PERIOD/2)  PCLK=~PCLK;
 end
 
+
 initial
 begin
     #(PERIOD*2) PRESETn  =  1;
+ 
     
     // TEST CASE 1 => writing on DIR Reg (0000 1111) 0 for input and 1 for output
     PADDR = 2'b10;
@@ -42,7 +46,10 @@ begin
     PADDR = 2'b11;
     PWDATA = 7;
     #(PERIOD*6); // wait 6 clock cycles to see the changes affecting PINS, Should be (XXXX 0111)
-
+    
+    
+    force PINS[7:4] = 4'b1101; // Input DATA TO GPIO, PINS Should be(1101 0111)
+    #(PERIOD*2);
     
     // TEST CASE 3 => reading from DIR Reg (Pin Direction)
     PWRITE =  0;
@@ -64,7 +71,7 @@ GPIO_APB  u_GPIO_APB (
     .PREADY                  ( PREADY          ),
     .PSLVERR                 ( PSLVERR         ),
 
-    .PINS                    ( PINS     [7:0]  )
+    .PINS                    ( PINS  )
 );
 
 

@@ -16,8 +16,8 @@ module APB_INTERFACE(     input PCLK,
                           output reg [7:0] BUSWDATA);
                           
                           
-    parameter [2:0] IDLE = 3'b000, START = 3'b001, READ = 3'b010, WRITE = 3'b011, READY = 3'b100, ERROR = 3'b101;
-    reg[2:0] state, next_state;
+    parameter [1:0] SELECT = 3'b00, READY = 3'b10, ERROR = 3'b11;
+    reg[1:0] state, next_state;
     
     assign clk = PCLK;
     assign rst_n = PRESETn;
@@ -26,7 +26,7 @@ module APB_INTERFACE(     input PCLK,
     
     
     always@(posedge PCLK, negedge PRESETn) begin
-      if(!PRESETn) state <= IDLE;
+      if(!PRESETn) state <= SELECT;
       else begin
         state <= next_state; 
       end
@@ -35,32 +35,28 @@ module APB_INTERFACE(     input PCLK,
 
     always @(PSEL, state) begin
       case(state)
-        IDLE:  begin
+        SELECT:  begin
                 if(PSEL == 2'b01) begin
                   PREADY <= 0;
                   PSLVERR <= 0;
-                  next_state <= START;
-                end
-                else next_state <= IDLE;
-               end
-        
-        START: begin
-                if(PWRITE) BUSWDATA <= PWDATA[7:0];
+                  next_state <= READY;
+                  if(PWRITE) BUSWDATA <= PWDATA[7:0];
                   else PRDATA[7:0] <= BUSRDATA;
-                next_state <= READY;
+                end
+                else next_state <= SELECT;
                end
               
 
         READY: begin     
                 PREADY <= 1;
-                next_state <= IDLE;
+                next_state <= SELECT;
                end
 
         ERROR: begin
                 PSLVERR <= 1;
-                next_state <= IDLE;
+                next_state <= SELECT;
                end
-        default: next_state <= IDLE;
+        default: next_state <= SELECT;
       endcase
     end        
 endmodule

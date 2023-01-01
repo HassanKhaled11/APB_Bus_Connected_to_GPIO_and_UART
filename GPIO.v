@@ -20,6 +20,7 @@ module GPIO(clk, rst_n, BUSW, BUSWDATA, BUSRDATA, REGSEL, pins);
 	initial begin
 		PORT <= 8'b00000000;
 		DIR <= 8'b00000000;
+		PIN <= 8'b00000000;
 		BUSRDATA <= 8'b00000000;
 	end
 	
@@ -30,6 +31,7 @@ module GPIO(clk, rst_n, BUSW, BUSWDATA, BUSRDATA, REGSEL, pins);
 			PORT <= 8'b00000000;
 			DIR <= 8'b00000000;
 			BUSRDATA <= 8'b00000000;
+			PIN <= 0;
 		end
 
 		else if(BUSW) begin
